@@ -514,6 +514,38 @@ const GFX = (() => {
     return { r, l: U.flipX(r) };
   });
 
+  /* ---------- Retratos de comunicação (24×24, meia grade espelhada) ---------- */
+  // h/m/d = casco claro/médio/escuro, v = visor, e/E = olhos, g = grade da boca, a = luz da antena
+  const FACE = [
+    '...........k', '...........a', '...........k', '.......kkkkk', '.....kkhhhhh', '....khhhhhhh',
+    '...khhmmmmmm', '...khmmmmmmm', '..khmmmmmmmm', '..kmmkkkkkkk', '..kmkvvvvvvv', '..kmkvEeevvv',
+    '..kmkveeevvv', '..kmkvvvvvvv', '..kmmkkkkkkk', '..kdmmmmmmmm', '...kdmmmgggg', '...kdmmmkkkk',
+    '....kddmmmmm', '.....kkddddd', '.......kkkkk', '........kddd', '...kkkkkdddd', '.kkddddddddd'
+  ];
+  const portCache = {};
+  // Quadros: 0 neutro, 1-2 falando, 3 piscando. Luz vem da esquerda (como em LIGHT): lado direito um tom mais escuro.
+  X.portrait = id => {
+    if (portCache[id]) return portCache[id];
+    const pal = PORTRAITS[id].pal;
+    const base = FACE.map(r => (r + r.split('').reverse().join('')).split('').map((ch, x) => (x >= 16 ? ({ h: 'm', m: 'd' }[ch] || ch) : ch)).join(''));
+    const vary = f => base.map((row, y) => {
+      if (f === 1 && y === 16) return row.replace(/g/g, 'G');
+      if (f === 2 && y === 16) return row.replace(/g/g, 'G');
+      if (f === 2 && y === 17) return row.slice(0, 9) + 'GGGGGG' + row.slice(15);
+      if (f === 3 && y === 11) return row.replace(/[eE]/g, 'v');
+      return row;
+    });
+    portCache[id] = [0, 1, 2, 3].map(f => {
+      const c = U.canvas(24, 24), g = c.getContext('2d');
+      g.fillStyle = pal.bg; g.fillRect(0, 0, 24, 24);
+      g.drawImage(U.sprite(vary(f), pal), 0, 0);
+      g.fillStyle = 'rgba(0,0,0,0.22)';
+      for (let y = 1; y < 24; y += 2) g.fillRect(0, y, 24, 1);
+      return c;
+    });
+    return portCache[id];
+  };
+
   /* ---------- Ícones de interface ---------- */
   const IP = {
     k: '#0b0b16', w: '#ffffff', y: '#ffd23f', Y: '#c8860e', o: '#ff8a2a', r: '#ff4a4a', R: '#a01a2a',

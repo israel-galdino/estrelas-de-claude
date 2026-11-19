@@ -12,10 +12,23 @@
       <canvas id="game"></canvas>
       <div id="inventory"></div>
       <div id="eventBanner"></div>
-      <div id="log" aria-live="polite"></div>
+      <div id="radar" aria-hidden="true"><canvas id="radarCv" width="56" height="40"></canvas><small id="radarInfo"></small></div>
+      <div id="comms" hidden>
+        <canvas id="commsFace" width="24" height="24" title="Avançar mensagem"></canvas>
+        <div class="cm-body"><small id="commsWho"></small><p id="commsText"></p></div>
+      </div>
+      <div id="commsLive" class="sr" aria-live="polite"></div>
       <div id="sectorTag"><span id="sectorName"></span></div>
     </section>
     <aside id="panel">
+      <div id="bridge">
+        <div class="st-row">
+          <div class="st" title="Energia da estação"><small>Energia</small><div class="mbar"><i></i></div><b>100% · nominal</b></div>
+          <div class="st" title="Drones na doca e em voo"><small>Hangar</small><b><span id="hgFleet"></span> <em id="hgDetail"></em></b></div>
+          <div class="st" title="Estado das fornalhas"><small>Fornalhas</small><div id="furnMini"></div></div>
+        </div>
+        <div id="alerts"></div>
+      </div>
       <div id="goal"></div>
       <nav id="tabs"></nav>
       <div id="tabContent"></div>

@@ -175,6 +175,14 @@ const GOALS = [
   { t: 'Acumule 1Qi créditos no total', c: s => s.lifeCredits >= 1e18, r: 1e16 }
 ];
 
+// Personagens do painel de comunicações. pal: cores do retrato gerado em GFX.portrait
+const PORTRAITS = {
+  ia: {
+    name: 'IA da Estação',
+    pal: { bg: '#04121a', k: '#06060e', h: '#d0d8f0', m: '#8a94bc', d: '#3a3f5a', v: '#06202a', e: '#5ef2ff', E: '#e0ffff', a: '#ff4a4a', g: '#123040', G: '#5ef2ff' }
+  }
+};
+
 const TABS = [
   { id: 'frota', name: 'Frota', icon: 'drone' },
   { id: 'refino', name: 'Refino', icon: 'flame' },

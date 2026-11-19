@@ -14,7 +14,8 @@ Abra `index.html` no navegador. Ou ative o GitHub Pages (Settings → Pages → 
 - 21 pesquisas + calibração infinita, 8 setores com planetas próprios
 - Salto Quântico (prestígio) com tecnologias permanentes
 - Missões, 28 conquistas, cometas dourados, chuvas de meteoros
-- Ganhos offline, save automático, exportar/importar
+- HUD de ponte de comando: comunicações da IA da estação, radar do setor, status da estação e alertas
+- Ganhos offline, save automático, exportar/importar (com migração de versões)
 
 ## Estrutura
 

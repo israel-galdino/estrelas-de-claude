@@ -16,7 +16,7 @@ const G = {
   tang: -Math.PI / 2, muzzle: 0, refineFx: 0, dockGlow: 0,
   timers: { comet: 70, shower: 240, boom: 130, market: 0, rate: 0, save: 0, auto: 0, check: 0, turret: 0 },
   gain: ORES.map(() => 0), dataGain: 0, cps: 0, hist: ORES.map(() => []),
-  log: [], st: { x: 60, y: 120 }, dock: { x: 87, y: 120 }, reg: { x0: 150, x1: 380, y0: 30, y1: 210 }, pl: { x: 300, y: 70 },
+  st: { x: 60, y: 120 }, dock: { x: 87, y: 120 }, reg: { x0: 150, x1: 380, y0: 30, y1: 210 }, pl: { x: 300, y: 70 },
   bg: null, planet: null, vig: null, debris: [], ready: false, hiddenAt: 0, lastTs: 0
 };
 let S = null;
@@ -208,10 +208,10 @@ function buyPrestige(id) {
   SFX.play('unlock');
 }
 
-/* ---------- Registro, textos e efeitos ---------- */
-function log(text, col) {
-  G.log.push({ text, col: col || '#d9d6ff', t: performance.now() });
-  if (G.log.length > 6) G.log.shift();
+/* ---------- Comunicações, textos e efeitos ---------- */
+// Mensagem para o painel de comunicações (fila com texto digitado em ui.js)
+function log(text, col, who) {
+  if (typeof UI !== 'undefined' && UI.comms) UI.comms.say(text, col, who);
 }
 function floatText(x, y, text, col, big) {
   G.floats.push({ x, y, text, col, t: 0, life: big ? 1.5 : 1.0, big: !!big });
@@ -1150,7 +1150,8 @@ function hardReset() {
   U.store.del(SAVE_KEY);
   S = defaultState();
   G.ast = []; G.drones = []; G.parts = []; G.picks = []; G.comets = []; G.bolts = []; G.floats = [];
-  G.buffs.frenzy = 0; G.event = null; G.log = [];
+  G.buffs.frenzy = 0; G.event = null;
+  if (typeof UI !== 'undefined' && UI.comms) UI.comms.clear();
   restoreHist(); setupSector(); syncDrones();
 }
 

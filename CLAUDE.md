@@ -9,11 +9,11 @@ Scripts globais concatenados pelo `build.js`, nesta ordem (cada arquivo só pode
 | Ordem | Arquivo | Papel |
 |---|---|---|
 | 1 | `js/util.js` | `U`: RNG com seed (`U.mulberry`), ruído, cores, sprites a partir de strings, fonte bitmap 3×5 do canvas, `U.fmt`, `U.store` (localStorage com try/catch) |
-| 2 | `js/data.js` | Tabelas de conteúdo: `ORES`, `SECTORS`, `UPGRADES`, `RESEARCH`, `PRESTIGE`, `ACH`, `GOALS`, `TABS` |
+| 2 | `js/data.js` | Tabelas de conteúdo: `ORES`, `SECTORS`, `UPGRADES`, `RESEARCH`, `PRESTIGE`, `ACH`, `GOALS`, `TABS`, `PORTRAITS` |
 | 3 | `js/audio.js` | `SFX`: efeitos sintetizados em WebAudio |
-| 4 | `js/gfx.js` | `GFX`: arte procedural (asteroides, planetas, nebulosas, estação, drones, ícones), sempre cacheada |
+| 4 | `js/gfx.js` | `GFX`: arte procedural (asteroides, planetas, nebulosas, estação, drones, ícones, retratos), sempre cacheada |
 | 5 | `js/game.js` | Estado (`S`, `G`, `D`), simulação, economia, render do canvas, save/offline, `Game` (API usada pela UI) |
-| 6 | `js/ui.js` | `UI`: HUD, abas, registro, toasts, modais |
+| 6 | `js/ui.js` | `UI`: HUD, abas, comunicações, radar, alertas, toasts, modais |
 
 `style.css` e `body.html` são a casca da interface. **Novo arquivo em `js/` precisa entrar no array do `build.js` na posição certa.**
 
@@ -46,9 +46,21 @@ Gera `index.html` (abrir direto no navegador) e `dist/orbita.html`. Nunca edite 
 - O canvas roda em baixa resolução (≈400×240) escalado com `image-rendering: pixelated`; desenhe em coordenadas inteiras.
 - Meta: 60 fps em notebook comum e funcionar no celular.
 
-### UI
+### UI: build × patch
 
-`UI.update` roda a cada 250 ms e hoje recria o innerHTML da aba aberta quando o HTML gerado muda. Evite trabalho pesado dentro das funções de aba.
+Cada aba em `UI.tabs` tem `key()`, `build()` e `patch()`:
+
+- `key()` devolve uma string que descreve a **estrutura** da aba (quais cartões existem, o que está no máximo, quais minérios foram vistos…).
+- `build()` gera o HTML do esqueleto e marca os nós dinâmicos com `data-r="nome"`. Só roda ao trocar de aba ou quando `key()` muda.
+- `patch()` escreve os valores com os helpers `UI.txt`, `UI.html`, `UI.cls`, `UI.dis`, `UI.w`, `UI.attr`, `UI.src` — eles guardam o último valor no próprio nó e não tocam no DOM se nada mudou. `patch()` roda logo depois de cada `build()`, então todo valor dinâmico tem um único caminho de escrita.
+
+Regra: se algo muda a cada tick, vai no `patch()`; se muda quais elementos existem, entra na `key()`. `UI.dbg` (`builds`, `patches`) ajuda a conferir no console que não há rebuild por tick.
+
+Mensagens do jogo vão para o painel de comunicações via `log(text, col)` em `game.js` (que chama `UI.comms.say`).
+
+HUD de ponte de comando (`ui.js`): `UI.comms` (fila de mensagens com texto digitado; retratos de `PORTRAITS` desenhados por `GFX.portrait`), `UI.radar` (canvas próprio a 10 fps), status da estação e alertas (`UI.calcAlerts`). Tudo respeita `UI.reduced` (`prefers-reduced-motion`): sem digitação, sem piscar, radar sem varredura.
+
+O CSS tem `[hidden] { display: none !important; }`: use o atributo `hidden` (ou `UI.hide`) para esconder elementos, mesmo os que têm `display` próprio.
 
 ## Save
 
