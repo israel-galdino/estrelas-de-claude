@@ -631,7 +631,7 @@ const RESEARCH = [
 const PRESTIGE = [
   { id: 'reson', name: 'Ressonância Estelar', desc: 'Valor de todos os minérios ×1,25 (acumula).', cost: l => Math.ceil(3 * Math.pow(1.7, l)), max: 60 },
   { id: 'drill', name: 'Brocas Ancestrais', desc: 'Dano de drones e cliques ×1,5 (acumula).', cost: l => Math.ceil(4 * Math.pow(1.8, l)), max: 40 },
-  { id: 'legacy', name: 'Herança Robótica', desc: 'Começa cada jornada com +2 drones.', cost: l => 2 + l * 2, max: 10 },
+  { id: 'legacy', name: 'Herança Robótica', desc: 'Começa cada jornada com +2 drones e aumenta a frota máxima em 2 (acumula).', cost: l => 2 + l * 2, max: 10 },
   { id: 'shortcut', name: 'Atalho Estelar', desc: 'Mantém +1 setor desbloqueado após o salto.', cost: l => 5 * (l + 1), max: 7 },
   { id: 'memory', name: 'Memória Quântica', desc: 'Mantém todas as pesquisas após o salto.', cost: () => 25, max: 1 },
   { id: 'golden', name: 'Cauda Dourada', desc: 'Recompensas de cometas ×2.', cost: () => 8, max: 1 },
@@ -1332,7 +1332,11 @@ const GFX = (() => {
 
 'use strict';
 /* ===== Núcleo do jogo: estado, simulação, economia, renderização ===== */
+// A chave do localStorage nunca muda; a versão do formato fica em S.v (ver migrate()).
 const SAVE_KEY = 'orbita-mineradora-v1';
+const SAVE_VERSION = 2;
+const HIST_LEN = 48; // pontos do histórico de preços (sparkline do Mercado e S.ph)
+const CRIT_LVL = 0.03, CRIT_AIM = 0.05; // crítico por nível de Mira de Precisão / pesquisa Mira Assistida
 
 const G = {
   W: 400, H: 240, scale: 3, t: 0, frame: 0, cv: null, ctx: null, tmp: null, tctx: null,
@@ -1351,12 +1355,12 @@ let S = null;
 
 function defaultState() {
   return {
-    v: 1, credits: 0, runCredits: 0, lifeCredits: 0, data: 0, shards: 0,
+    v: SAVE_VERSION, credits: 0, runCredits: 0, lifeCredits: 0, data: 0, shards: 0,
     ores: ORES.map(() => 0), ingots: ORES.map(() => 0), seen: ORES.map((_, i) => i < 2),
     upg: { fleet: 0, laser: 0, cargo: 0, speed: 0, click: 0, crit: 0, field: 0, scanner: 0, refine: 0 },
     research: {}, pupg: {}, sector: 0, maxSector: 0, runMaxSector: 0,
     furnaces: [{ ore: -1, prog: 0, busy: false, take: 0 }],
-    prices: ORES.map(() => 1),
+    prices: ORES.map(() => 1), ph: ORES.map(() => []),
     autosell: { on: true, thr: 1.0, ingots: false },
     ach: {}, goal: 0,
     stats: { clicks: 0, crits: 0, asteroids: 0, rich: 0, comets: 0, ingots: 0, prestiges: 0, play: 0, mined: 0, sold: 0 },
@@ -1369,7 +1373,7 @@ function defaultState() {
 /* ---------- Valores derivados ---------- */
 const D = {
   drones: () => 1 + S.upg.fleet,
-  maxDrones: () => 15 + (S.research.hangar1 ? 10 : 0) + (S.research.hangar2 ? 15 : 0),
+  maxDrones: () => 15 + 2 * (S.pupg.legacy || 0) + (S.research.hangar1 ? 10 : 0) + (S.research.hangar2 ? 15 : 0),
   pdrill: () => Math.pow(1.5, S.pupg.drill || 0),
   dpsAt: l => 2 * Math.pow(1.25, l) * (S.research.reson ? 1.5 : 1) * (S.research.singular ? 3 : 1) * D.pdrill(),
   dps: () => D.dpsAt(S.upg.laser) * (G.buffs.frenzy > 0 ? 3 : 1),
@@ -1379,7 +1383,9 @@ const D = {
   speed: () => D.speedAt(S.upg.speed) * (G.buffs.frenzy > 0 ? 1.5 : 1),
   clickAt: l => 1.5 * Math.pow(1.35, l) * D.pdrill() + 0.05 * D.dpsAt(S.upg.laser) * D.drones(),
   click: () => D.clickAt(S.upg.click) * (G.buffs.frenzy > 0 ? 3 : 1),
-  critAt: l => Math.min(0.9, 0.03 * l + (S.research.aim ? 0.05 : 0)),
+  // teto = soma de todas as fontes existentes; ao criar uma fonte nova de crítico, some-a aqui
+  critMax: () => CRIT_LVL * UPGRADES.find(u => u.id === 'crit').max() + CRIT_AIM,
+  critAt: l => Math.min(D.critMax(), CRIT_LVL * l + (S.research.aim ? CRIT_AIM : 0)),
   crit: () => D.critAt(S.upg.crit),
   maxAst: () => 5 + S.upg.field,
   richAt: l => (0.02 + 0.015 * l) * (S.research.spectro ? 2 : 1),
@@ -1865,17 +1871,23 @@ function marketTick() {
     m += (1 - m) * 0.035 + (Math.random() - 0.5) * 0.12;
     S.prices[i] = U.clamp(m, 0.35, 3.2);
     G.hist[i].push(S.prices[i]);
-    if (G.hist[i].length > 48) G.hist[i].shift();
+    if (G.hist[i].length > HIST_LEN) G.hist[i].shift();
   }
 }
-function autoSell() {
-  if (!S.research.autosell || !S.autosell.on) return;
+// Uma passada da venda automática (limiar de preço, reserva das fornalhas e opção de lingotes).
+// Usada tanto em tempo real quanto nos ganhos offline.
+function autoSellPass() {
   let v = 0;
   for (let i = 0; i < ORES.length; i++) {
     if (S.prices[i] < S.autosell.thr) continue;
     v += sellOre(i, true, reserveOf(i));
     if (S.autosell.ingots) v += sellIngot(i, true);
   }
+  return v;
+}
+function autoSell() {
+  if (!S.research.autosell || !S.autosell.on) return;
+  const v = autoSellPass();
   if (v > 0) { floatText(G.dock.x, G.dock.y - 14, '+' + U.fmt(v), '#ffd23f'); SFX.play('coin', 0.5); }
 }
 function refineTick(dt) {
@@ -2356,26 +2368,92 @@ function warpK() {
 function save() {
   if (!S) return;
   S.last = Date.now();
+  S.ph = G.hist.map(h => h.slice(-HIST_LEN).map(v => Math.round(v * 100) / 100));
   U.store.set(SAVE_KEY, JSON.stringify(S));
 }
+
+/* Migração de save: cada case converte da versão N para N+1 e cai no próximo (sem break).
+   Para mudar o formato: suba SAVE_VERSION, adicione o case da versão anterior e nunca apague cases antigos. */
+function migrate(s) {
+  const v = (s.v | 0) || 1;
+  switch (v) {
+    case 1:
+      // v1 → v2: histórico de preços salvo (S.ph). Nenhum campo renomeado; o merge preenche o resto.
+      if (!Array.isArray(s.ph)) s.ph = [];
+    // falls through
+    case 2: // versão atual
+      break;
+  }
+  s.v = SAVE_VERSION;
+  return s;
+}
+// Copia de src só as chaves que existem no estado padrão (chaves desconhecidas são ignoradas).
 function mergeState(def, src) {
-  for (const k in src) {
-    if (!(k in def)) { def[k] = src[k]; continue; }
+  for (const k in def) {
+    if (!Object.prototype.hasOwnProperty.call(src, k)) continue;
     const dv = def[k], sv = src[k];
-    if (Array.isArray(dv) && Array.isArray(sv)) {
+    if (Array.isArray(dv)) {
+      if (!Array.isArray(sv)) continue;
       if (k === 'furnaces') def[k] = sv.length ? sv : dv;
       else for (let i = 0; i < Math.min(dv.length, sv.length); i++) dv[i] = sv[i];
-    } else if (dv && typeof dv === 'object' && sv && typeof sv === 'object') mergeState(dv, sv);
+    } else if (dv && typeof dv === 'object') { if (sv && typeof sv === 'object' && !Array.isArray(sv)) mergeState(dv, sv); }
     else if (typeof sv === typeof dv) def[k] = sv;
   }
   return def;
 }
-function loadState(obj) {
-  const s = mergeState(defaultState(), obj);
-  for (let i = 0; i < ORES.length; i++) { if (!isFinite(s.ores[i])) s.ores[i] = 0; if (!isFinite(s.ingots[i])) s.ingots[i] = 0; }
-  if (!isFinite(s.credits)) s.credits = 0;
+const num0 = v => (typeof v === 'number' && isFinite(v) && v > 0 ? v : 0);
+const int0 = v => Math.floor(num0(v));
+// Mapas de chave dinâmica: só ids conhecidos em data.js sobrevivem
+function idMap(src, list, val) {
+  const out = {};
+  if (!src || typeof src !== 'object') return out;
+  for (const x of list) { const v = val(src[x.id], x); if (v) out[x.id] = v; }
+  return out;
+}
+// Garante tipos e limites depois do merge (protege contra saves corrompidos ou editados)
+function sanitize(s, raw) {
+  for (const k of ['credits', 'runCredits', 'lifeCredits', 'data', 'shards', 'dataRate']) s[k] = num0(s[k]);
+  s.dataLvl = int0(s.dataLvl);
+  for (let i = 0; i < ORES.length; i++) {
+    s.ores[i] = num0(s.ores[i]); s.ingots[i] = num0(s.ingots[i]); s.rates[i] = num0(s.rates[i]);
+    s.prices[i] = typeof s.prices[i] === 'number' && isFinite(s.prices[i]) ? U.clamp(s.prices[i], 0.35, 3.2) : 1;
+    s.seen[i] = !!s.seen[i];
+    const h = Array.isArray(s.ph[i]) ? s.ph[i] : [];
+    s.ph[i] = h.filter(v => typeof v === 'number' && isFinite(v)).slice(-HIST_LEN).map(v => U.clamp(v, 0.35, 3.2));
+  }
+  for (const u of UPGRADES) s.upg[u.id] = int0(s.upg[u.id]);
+  for (const k in s.stats) s.stats[k] = num0(s.stats[k]);
+  s.research = idMap(raw.research, RESEARCH, v => (v ? 1 : 0));
+  s.ach = idMap(raw.ach, ACH, v => (v ? 1 : 0));
+  s.pupg = idMap(raw.pupg, PRESTIGE, (v, p) => Math.min(p.max, int0(v)));
+  const last = SECTORS.length - 1;
+  s.maxSector = U.clamp(s.maxSector | 0, 0, last);
+  s.runMaxSector = U.clamp(s.runMaxSector | 0, 0, last);
   s.sector = U.clamp(s.sector | 0, 0, s.maxSector);
+  s.goal = U.clamp(s.goal | 0, 0, GOALS.length);
+  s.furnaces = (Array.isArray(s.furnaces) ? s.furnaces : []).slice(0, 5).filter(f => f && typeof f === 'object').map(f => {
+    const ore = Number.isInteger(f.ore) && f.ore >= 0 && f.ore < ORES.length ? f.ore : -1;
+    const busy = ore >= 0 && f.busy === true && num0(f.take) >= 10;
+    return { ore, prog: busy ? U.clamp(num0(f.prog), 0, 1) : 0, busy, take: busy ? num0(f.take) : 0 };
+  });
+  if (!s.furnaces.length) s.furnaces.push({ ore: -1, prog: 0, busy: false, take: 0 });
+  s.autosell.thr = U.clamp(s.autosell.thr, 0.4, 2);
+  s.settings.fx = U.clamp(s.settings.fx | 0, 0, 2);
+  s.buyMode = raw.buyMode === 'max' || raw.buyMode === 10 ? raw.buyMode : 1;
+  if (!(typeof s.last === 'number' && isFinite(s.last))) s.last = Date.now();
   return s;
+}
+function loadState(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('save inválido');
+  migrate(obj);
+  return sanitize(mergeState(defaultState(), obj), obj);
+}
+// Recria G.hist a partir do histórico salvo (ou de cópias do preço atual, se não houver)
+function restoreHist() {
+  for (let i = 0; i < ORES.length; i++) {
+    const h = S.ph[i];
+    G.hist[i] = h && h.length >= 2 ? h.slice() : Array(30).fill(S.prices[i]);
+  }
 }
 function applyOffline(sec, modal) {
   sec = Math.min(sec, D.offCap());
@@ -2395,7 +2473,7 @@ function applyOffline(sec, modal) {
     if (nb > 0) { S.ores[f.ore] -= nb * B; S.ingots[f.ore] += (nb * B) / 10; S.stats.ingots += (nb * B) / 10; ing.push([f.ore, (nb * B) / 10]); }
   }
   let cr = 0;
-  if (S.research.autosell && S.autosell.on) for (const [i] of got) cr += sellOre(i, true, reserveOf(i));
+  if (S.research.autosell && S.autosell.on) cr = autoSellPass();
   if (!got.length && !dg && !ing.length) return;
   if (modal) UI.offlineModal(sec, got, dg, ing, cr, eff);
   else UI.toast('Mineração remota', `${U.fmtTime(sec)} longe · ${got.length ? got.map(([i, u]) => `+${U.fmt(u)} ${ORES[i].name}`).join(', ') : 'sem minério'}`, 'drone', 'cyan');
@@ -2405,7 +2483,7 @@ function hardReset() {
   S = defaultState();
   G.ast = []; G.drones = []; G.parts = []; G.picks = []; G.comets = []; G.bolts = []; G.floats = [];
   G.buffs.frenzy = 0; G.event = null; G.log = [];
-  setupSector(); syncDrones();
+  restoreHist(); setupSector(); syncDrones();
 }
 
 /* ---------- Entrada e laço ---------- */
@@ -2461,7 +2539,7 @@ const Game = {
     G.ctx = G.cv.getContext('2d');
     G.tmp = U.canvas(64, 64);
     G.tctx = G.tmp.getContext('2d');
-    for (let i = 0; i < ORES.length; i++) for (let k = 0; k < 30; k++) G.hist[i].push(S.prices[i]);
+    restoreHist();
     resize();
     if (!G.bg) { setupSector(); G.vig = GFX.makeVignette(G.W, G.H); }
     syncDrones();
@@ -2478,7 +2556,7 @@ const Game = {
   },
   buy: buyUpgrade, sellOre, sellIngot, sellAll, research: doResearch, travel, unlock: unlockSector,
   calib: doCalib, prestige: doPrestige, pbuy: buyPrestige, save, hardReset, shardGain, canPrestige, setFurnace,
-  load(obj) { S = loadState(obj); G.ast = []; G.drones = []; setupSector(); syncDrones(); save(); }
+  load(obj) { S = loadState(obj); G.ast = []; G.drones = []; restoreHist(); setupSector(); syncDrones(); save(); }
 };
 
 'use strict';
@@ -2833,12 +2911,14 @@ UI.act = (act, ds) => {
       break;
     case 'import-yes':
       try {
-        const obj = JSON.parse(decodeURIComponent(escape(atob($('importCode').value.trim()))));
-        if (!obj || typeof obj !== 'object' || !obj.upg) throw new Error('formato');
+        let obj;
+        try { obj = JSON.parse(decodeURIComponent(escape(atob($('importCode').value.trim())))); } catch (e) { obj = null; }
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj) || !obj.upg) throw new Error('Código inválido. Confira se copiou o texto inteiro.');
+        if ((obj.v | 0) > SAVE_VERSION) throw new Error('Este save é de uma versão mais nova do jogo.');
         Game.load(obj);
         UI.closeModal();
         UI.toast('Save importado', 'Bem-vindo de volta, comandante.', 'star', 'cyan');
-      } catch (e) { $('importErr').textContent = 'Código inválido. Confira se copiou o texto inteiro.'; }
+      } catch (e) { $('importErr').textContent = e.message; }
       break;
     case 'reset':
       UI.modal(`<h2>Apagar todo o progresso?</h2><p>Isso inclui fragmentos, conquistas e estatísticas. Não há como desfazer.</p>

@@ -350,12 +350,14 @@ UI.act = (act, ds) => {
       break;
     case 'import-yes':
       try {
-        const obj = JSON.parse(decodeURIComponent(escape(atob($('importCode').value.trim()))));
-        if (!obj || typeof obj !== 'object' || !obj.upg) throw new Error('formato');
+        let obj;
+        try { obj = JSON.parse(decodeURIComponent(escape(atob($('importCode').value.trim())))); } catch (e) { obj = null; }
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj) || !obj.upg) throw new Error('Código inválido. Confira se copiou o texto inteiro.');
+        if ((obj.v | 0) > SAVE_VERSION) throw new Error('Este save é de uma versão mais nova do jogo.');
         Game.load(obj);
         UI.closeModal();
         UI.toast('Save importado', 'Bem-vindo de volta, comandante.', 'star', 'cyan');
-      } catch (e) { $('importErr').textContent = 'Código inválido. Confira se copiou o texto inteiro.'; }
+      } catch (e) { $('importErr').textContent = e.message; }
       break;
     case 'reset':
       UI.modal(`<h2>Apagar todo o progresso?</h2><p>Isso inclui fragmentos, conquistas e estatísticas. Não há como desfazer.</p>
