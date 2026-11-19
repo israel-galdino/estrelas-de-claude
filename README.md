@@ -21,4 +21,3 @@ Abra `index.html` no navegador. Ou ative o GitHub Pages (Settings → Pages → 
 - `js/` — código-fonte (`util`, `data`, `audio`, `gfx`, `game`, `ui`)
 - `style.css`, `body.html` — interface
 - `build.js` — gera `index.html` (arquivo único) e `dist/orbita.html`: `node build.js`
-# estrelas-de-claude
