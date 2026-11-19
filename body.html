@@ -1,0 +1,26 @@
+<div id="app">
+  <header id="hud">
+    <div class="brand"><h1>ÓRBITA</h1><small>mineradora estelar</small></div>
+    <div class="hud-stats">
+      <div class="stat" id="hudCredits" title="Créditos"><span class="ico" data-ico="coin"></span><b id="credits">0</b><small id="cps">+0/s</small></div>
+      <div class="stat" id="hudData" title="Dados de pesquisa"><span class="ico" data-ico="data"></span><b id="data">0</b><small>dados</small></div>
+      <div class="stat" id="hudShards" title="Fragmentos Estelares" hidden><span class="ico" data-ico="shard"></span><b id="shards">0</b><small>frag.</small></div>
+    </div>
+  </header>
+  <main>
+    <section id="viewport" aria-label="Campo de asteroides">
+      <canvas id="game"></canvas>
+      <div id="inventory"></div>
+      <div id="eventBanner"></div>
+      <div id="log" aria-live="polite"></div>
+      <div id="sectorTag"><span id="sectorName"></span></div>
+    </section>
+    <aside id="panel">
+      <div id="goal"></div>
+      <nav id="tabs"></nav>
+      <div id="tabContent"></div>
+    </aside>
+  </main>
+</div>
+<div id="toasts"></div>
+<div id="modal" hidden><div class="modal-box" role="dialog" aria-modal="true"><div id="modalBody"></div></div></div>

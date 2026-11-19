@@ -1,0 +1,2890 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Órbita Mineradora</title>
+<meta name="description" content="Idle de mineração espacial em pixel art">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
+<style>
+/* Layout: viewport de jogo à esquerda, console de comando à direita (empilha no celular) */
+:root {
+  --void: #06050d;
+  --hull: #0f0e22;
+  --hull-2: #17153a;
+  --hull-3: #221f52;
+  --rivet: #2f2b6a;
+  --rivet-hi: #4a46a8;
+  --text: #dcd8ff;
+  --dim: #8c88c0;
+  --cyan: #5ef2ff;
+  --gold: #ffd23f;
+  --mag: #ff6ae0;
+  --green: #7dff8a;
+  --red: #ff5a6a;
+  --orange: #ff9a3a;
+  --btn: #2a2670;
+  --btn-hi: #6a66d8;
+  --btn-lo: #15124a;
+  --ok: #1d5e3a;
+  --ok-hi: #4ad07a;
+  --ok-lo: #0c2e1c;
+  --font-pixel: 'Silkscreen', 'Courier New', monospace;
+  --font-body: 'VT323', 'Courier New', monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--void);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 20px;
+  line-height: 1.15;
+  overflow: hidden;
+  -webkit-font-smoothing: none;
+}
+#app { display: flex; flex-direction: column; height: 100%; }
+
+/* ---------- HUD ---------- */
+#hud {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 6px max(16px, env(safe-area-inset-right, 0px)) 6px max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(180deg, var(--hull-2), var(--hull));
+  border-bottom: 3px solid var(--rivet);
+  box-shadow: 0 3px 0 #000;
+  position: relative; z-index: 3;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand h1 { font-family: var(--font-pixel); font-size: 20px; margin: 0; letter-spacing: 2px; color: var(--cyan); text-shadow: 2px 2px 0 #0a3a5a; }
+.brand small { font-family: var(--font-pixel); font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+.hud-stats { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+.stat {
+  display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px;
+  background: #0a0918; border: 2px solid var(--rivet);
+  box-shadow: inset 2px 2px 0 rgba(0,0,0,.5);
+  font-variant-numeric: tabular-nums;
+}
+.stat b { font-size: 24px; font-weight: normal; color: #fff; min-width: 3ch; }
+.stat small { font-size: 16px; color: var(--dim); }
+#hudCredits b { color: var(--gold); }
+#hudData b { color: var(--cyan); }
+#hudShards b { color: var(--mag); }
+.stat .px, .ico .px { width: 22px; height: 22px; }
+
+/* ---------- Principal ---------- */
+main { flex: 1; display: flex; min-height: 0; }
+#viewport { flex: 1; position: relative; overflow: hidden; background: #000; cursor: crosshair; min-width: 0; }
+#game { display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
+#viewport::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
+}
+body.noscan #viewport::after { display: none; }
+.px { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+#inventory { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; z-index: 2; }
+.inv-row { display: flex; gap: 4px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px 1px 3px;
+  background: rgba(6,5,18,.82); border: 2px solid var(--rivet); font-size: 19px; font-variant-numeric: tabular-nums;
+}
+.chip .px { width: 22px; height: 22px; }
+.chip.ing { border-color: #5a4a20; }
+.chip b { font-weight: normal; }
+#sectorTag { position: absolute; right: 10px; bottom: 8px; font-family: var(--font-pixel); font-size: 10px; color: var(--dim); background: rgba(6,5,18,.7); padding: 3px 8px; border: 2px solid var(--rivet); z-index: 2; pointer-events: none; }
+#eventBanner { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; pointer-events: none; z-index: 2; }
+.ev { font-family: var(--font-pixel); font-size: 11px; padding: 4px 10px; border: 2px solid; background: rgba(6,5,18,.85); animation: pulse 1s steps(2) infinite; white-space: nowrap; }
+.ev.gold { color: var(--gold); border-color: var(--gold); }
+.ev.orange { color: var(--orange); border-color: var(--orange); }
+@keyframes pulse { 50% { filter: brightness(1.5); } }
+#log { position: absolute; left: 10px; bottom: 8px; max-width: 60%; font-size: 18px; pointer-events: none; z-index: 2; text-shadow: 2px 2px 0 #000; }
+
+/* ---------- Painel ---------- */
+#panel {
+  width: 430px; display: flex; flex-direction: column; min-height: 0;
+  background: var(--hull); border-left: 3px solid var(--rivet); box-shadow: -3px 0 0 #000;
+}
+#goal {
+  display: grid; grid-template-columns: 1fr auto; gap: 0 10px; align-items: center;
+  margin: 8px 8px 0; padding: 6px 10px;
+  background: repeating-linear-gradient(135deg, #1a1640 0 6px, #17143a 6px 12px);
+  border: 2px solid var(--gold); box-shadow: inset 0 0 0 2px #000;
+}
+#goal small { grid-column: 1 / -1; font-family: var(--font-pixel); font-size: 9px; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; }
+#goal span { font-size: 20px; min-width: 0; }
+#goal em { font-style: normal; color: var(--gold); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+#goal em .px { width: 18px; height: 18px; }
+#tabs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; padding: 8px 8px 0; }
+.tab {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 5px 0 4px; cursor: pointer;
+  background: var(--hull-2); color: var(--dim); border: 2px solid var(--rivet); border-bottom: none;
+  font-family: var(--font-pixel); font-size: 8px; text-transform: uppercase;
+}
+.tab .px { width: 22px; height: 22px; opacity: .7; }
+.tab:hover { color: var(--text); }
+.tab:hover .px { opacity: 1; }
+.tab.on { background: var(--hull-3); color: #fff; border-color: var(--rivet-hi); }
+.tab.on .px { opacity: 1; }
+.tab .dot { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; background: var(--green); display: none; box-shadow: 0 0 0 1px #000; }
+.tab.alert .dot { display: block; animation: pulse 0.8s steps(2) infinite; }
+.tab:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+#tabContent {
+  flex: 1; overflow-y: auto; padding: 10px 10px 16px; margin: 0 8px 8px;
+  background: var(--hull-3); border: 2px solid var(--rivet-hi);
+  display: flex; flex-direction: column; gap: 8px;
+  scrollbar-color: var(--rivet-hi) var(--hull);
+}
+h3 { font-family: var(--font-pixel); font-size: 11px; margin: 8px 0 0; color: var(--cyan); text-transform: uppercase; letter-spacing: 1px; display: flex; gap: 8px; align-items: baseline; }
+h3 small { font-family: var(--font-body); font-size: 16px; color: var(--dim); text-transform: none; letter-spacing: 0; }
+.hint { margin: 0; font-size: 18px; color: var(--text); }
+.dim { color: var(--dim); }
+.r { color: var(--red); }
+.gold { color: var(--gold); }
+.cyan { color: var(--cyan); }
+.mag { color: var(--mag); }
+
+/* ---------- Botões ---------- */
+.btn {
+  font-family: var(--font-pixel); font-size: 10px; color: #fff; text-transform: uppercase; cursor: pointer;
+  background: var(--btn); border: 2px solid #000; padding: 6px 10px;
+  box-shadow: inset 2px 2px 0 var(--btn-hi), inset -2px -2px 0 var(--btn-lo);
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+}
+.btn:hover:not(:disabled) { filter: brightness(1.2); }
+.btn:active:not(:disabled) { box-shadow: inset 2px 2px 0 var(--btn-lo), inset -2px -2px 0 var(--btn-hi); transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.sm { padding: 4px 8px; font-size: 9px; flex-direction: column; gap: 1px; }
+.btn.sm small { font-family: var(--font-body); font-size: 15px; text-transform: none; color: var(--gold); }
+.btn.on { background: var(--ok); box-shadow: inset 2px 2px 0 var(--ok-hi), inset -2px -2px 0 var(--ok-lo); }
+.btn.wide { width: 100%; padding: 9px; font-size: 11px; }
+.btn.magb { background: #6a1a6a; box-shadow: inset 2px 2px 0 var(--mag), inset -2px -2px 0 #2a0a2a; }
+.btn.danger { background: #6a1a24; box-shadow: inset 2px 2px 0 var(--red), inset -2px -2px 0 #2a0a10; }
+.btn .mini, .mini { width: 16px; height: 16px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.buymode { display: flex; align-items: center; gap: 6px; font-family: var(--font-pixel); font-size: 9px; color: var(--dim); text-transform: uppercase; }
+.buymode span { margin-right: auto; }
+
+/* ---------- Cartões ---------- */
+.card {
+  display: flex; gap: 10px; align-items: center; padding: 8px;
+  background: var(--hull-2); border: 2px solid #000;
+  box-shadow: inset 2px 2px 0 rgba(255,255,255,.06), inset -2px -2px 0 rgba(0,0,0,.35);
+}
+.card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.card .t { font-family: var(--font-pixel); font-size: 11px; color: #fff; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.card .t.big { font-size: 15px; color: var(--mag); }
+.card .lvl { font-family: var(--font-body); font-size: 17px; color: var(--cyan); }
+.card .d { font-size: 17px; color: var(--dim); }
+.card .e { font-size: 18px; color: var(--text); }
+.card .e b { color: var(--green); font-weight: normal; }
+.card .arrow { color: var(--dim); }
+.icbox { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: #0a0918; border: 2px solid var(--rivet); }
+.icbox .px { width: 33px; height: 33px; }
+.icbox.hot { border-color: var(--orange); animation: pulse .5s steps(2) infinite; }
+.card.upg .buy { min-width: 92px; flex-direction: column; gap: 2px; }
+.card.upg .buy small { font-size: 8px; color: #c8c4ff; }
+.card.upg .buy span { display: flex; gap: 3px; align-items: center; font-family: var(--font-body); font-size: 19px; text-transform: none; }
+.card.ok { border-color: #1a4a2a; }
+.card.ok .buy { background: var(--ok); box-shadow: inset 2px 2px 0 var(--ok-hi), inset -2px -2px 0 var(--ok-lo); }
+.card.maxed { opacity: .7; }
+.stats4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.stats4 > div { background: #0a0918; border: 2px solid var(--rivet); padding: 4px 6px; display: flex; flex-direction: column; min-width: 0; }
+.stats4 small { font-family: var(--font-pixel); font-size: 7px; color: var(--dim); text-transform: uppercase; }
+.stats4 b { font-weight: normal; font-size: 21px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* refino */
+select {
+  font-family: var(--font-body); font-size: 18px; color: var(--text); background: #0a0918;
+  border: 2px solid var(--rivet-hi); padding: 2px 4px; width: 100%;
+}
+.bar { height: 8px; background: #0a0918; border: 2px solid #000; margin-top: 3px; }
+.bar i { display: block; height: 100%; transition: width .25s linear; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.chip.big { font-size: 17px; padding: 3px 8px 3px 4px; }
+.chip.big span { flex: 1; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* mercado */
+.card.auto { flex-direction: column; align-items: stretch; gap: 6px; }
+.tog { display: flex; gap: 8px; align-items: center; font-size: 19px; cursor: pointer; }
+.tog input { width: 18px; height: 18px; accent-color: var(--green); }
+.rng { display: flex; flex-direction: column; gap: 2px; font-size: 18px; }
+.rng input { width: 100%; accent-color: var(--gold); }
+.mrow { display: flex; align-items: center; gap: 8px; padding: 5px 6px; background: var(--hull-2); border: 2px solid #000; }
+.mrow .oi { width: 30px; height: 30px; flex: none; }
+.mrow .nm { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 19px; }
+.mrow .nm small { font-size: 16px; color: var(--dim); }
+.mrow .pr { display: flex; flex-direction: column; align-items: flex-end; min-width: 58px; font-variant-numeric: tabular-nums; }
+.mrow .pr b { font-weight: normal; color: var(--gold); font-size: 19px; }
+.mrow .pr small { font-size: 15px; }
+.mrow .spacer { width: 64px; }
+.mrow .btn { min-width: 76px; }
+.up { color: var(--green); }
+.down { color: var(--red); }
+.spark { flex: none; }
+.spark polyline { fill: none; stroke-width: 1.5; }
+.spark polyline.up, .spark circle.up { stroke: var(--green); fill: none; }
+.spark polyline.down, .spark circle.down { stroke: var(--red); fill: none; }
+.spark circle.up { fill: var(--green); }
+.spark circle.down { fill: var(--red); }
+.spark .base { stroke: var(--rivet-hi); stroke-dasharray: 2 2; stroke-width: 1; }
+
+/* pesquisa */
+.rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.card.res { flex-direction: column; align-items: stretch; gap: 4px; }
+.card.res .btn { margin-top: auto; font-family: var(--font-body); font-size: 19px; }
+.card.res.done { border-color: #1a4a2a; background: #12241e; }
+.card.res.done .tag { color: var(--green); }
+.card.res.locked { opacity: .55; }
+.card.res.ok { border-color: var(--cyan); }
+.tag { font-family: var(--font-pixel); font-size: 9px; text-transform: uppercase; margin-top: auto; }
+.tag.here { color: var(--green); padding: 4px 8px; border: 2px solid var(--green); }
+
+/* setores */
+.card.sec { align-items: flex-start; }
+.card.sec .planet { width: 64px; height: 64px; flex: none; background: #05040c; border: 2px solid var(--rivet); }
+.card.sec .planet.unk { filter: brightness(0) drop-shadow(0 0 0 #333); opacity: .6; }
+.card.sec.cur { border-color: var(--green); }
+.card.sec.locked { opacity: .6; }
+.card.sec .btn, .card.sec .tag { align-self: center; }
+.ores { display: flex; gap: 2px; align-items: center; }
+.ores .px { width: 22px; height: 22px; }
+.ores small { margin-left: 6px; color: var(--orange); font-size: 16px; }
+.req { font-size: 17px; }
+.req b { font-weight: normal; }
+.g { color: var(--green); }
+
+/* salto */
+.card.prest { flex-direction: column; align-items: stretch; gap: 8px; border-color: #4a1a4a; background: linear-gradient(180deg, #24123a, #17153a); }
+
+/* troféus */
+.agrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ach { display: flex; gap: 6px; align-items: center; padding: 5px; background: var(--hull-2); border: 2px solid #000; opacity: .5; }
+.ach.got { opacity: 1; border-color: #5a4a10; }
+.ach .px { width: 28px; height: 28px; flex: none; }
+.ach div { display: flex; flex-direction: column; min-width: 0; }
+.ach b { font-family: var(--font-pixel); font-size: 9px; font-weight: normal; color: var(--gold); }
+.ach small { font-size: 15px; color: var(--dim); }
+
+/* ajustes */
+.card.cfg { flex-wrap: wrap; }
+.card.cfg .btn { flex: 1 1 45%; }
+.statlist { display: grid; gap: 2px; }
+.statlist div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 6px; background: var(--hull-2); font-size: 18px; }
+.statlist b { font-weight: normal; color: var(--cyan); font-variant-numeric: tabular-nums; }
+
+/* ---------- Toasts e modal ---------- */
+#toasts { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 6px; z-index: 20; pointer-events: none; width: min(420px, calc(100% - 32px)); }
+.toast {
+  display: flex; gap: 10px; align-items: center; padding: 8px 12px;
+  background: #0d0b24; border: 2px solid var(--rivet-hi); box-shadow: 4px 4px 0 #000;
+  animation: tin .25s steps(4);
+}
+.toast.gold { border-color: var(--gold); }
+.toast.cyan { border-color: var(--cyan); }
+.toast .px { width: 30px; height: 30px; flex: none; }
+.toast div { display: flex; flex-direction: column; min-width: 0; }
+.toast b { font-family: var(--font-pixel); font-size: 10px; font-weight: normal; color: var(--gold); text-transform: uppercase; }
+.toast.cyan b { color: var(--cyan); }
+.toast small { font-size: 18px; }
+.toast.out { opacity: 0; transform: translateY(8px); transition: all .5s steps(5); }
+@keyframes tin { from { transform: translateY(16px); opacity: 0; } }
+#modal { position: fixed; inset: 0; background: rgba(2,1,8,.75); display: grid; place-items: center; z-index: 30; padding: 16px; }
+.modal-box { width: min(480px, 100%); background: var(--hull-2); border: 3px solid var(--rivet-hi); box-shadow: 6px 6px 0 #000, inset 2px 2px 0 rgba(255,255,255,.06); padding: 16px; max-height: 90vh; overflow-y: auto; }
+.modal-box h2 { font-family: var(--font-pixel); font-size: 15px; margin: 0 0 8px; color: var(--cyan); }
+.modal-box p { margin: 0 0 10px; }
+.modal-box .row { margin-top: 12px; }
+textarea { width: 100%; height: 110px; background: #0a0918; color: var(--text); border: 2px solid var(--rivet-hi); font-family: monospace; font-size: 12px; resize: vertical; word-break: break-all; }
+
+/* ---------- Responsivo ---------- */
+@media (max-width: 900px) {
+  main { flex-direction: column; }
+  #viewport { flex: none; height: 48vh; height: 48dvh; }
+  #panel { width: auto; flex: 1; border-left: none; border-top: 3px solid var(--rivet); }
+  .brand small { display: none; }
+  #log { display: none; }
+  .tab span { display: none; }
+}
+@media (max-width: 480px) {
+  body { font-size: 18px; }
+  .hud-stats { margin-left: 0; width: 100%; }
+  .stat b { font-size: 20px; }
+  .stats4 { grid-template-columns: repeat(2, 1fr); }
+  .rgrid, .agrid, .grid2 { grid-template-columns: 1fr; }
+  .mrow .spark, .mrow .spacer { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ev, .tab.alert .dot, .icbox.hot { animation: none; }
+  .toast { animation: none; }
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="brand"><h1>ÓRBITA</h1><small>mineradora estelar</small></div>
+    <div class="hud-stats">
+      <div class="stat" id="hudCredits" title="Créditos"><span class="ico" data-ico="coin"></span><b id="credits">0</b><small id="cps">+0/s</small></div>
+      <div class="stat" id="hudData" title="Dados de pesquisa"><span class="ico" data-ico="data"></span><b id="data">0</b><small>dados</small></div>
+      <div class="stat" id="hudShards" title="Fragmentos Estelares" hidden><span class="ico" data-ico="shard"></span><b id="shards">0</b><small>frag.</small></div>
+    </div>
+  </header>
+  <main>
+    <section id="viewport" aria-label="Campo de asteroides">
+      <canvas id="game"></canvas>
+      <div id="inventory"></div>
+      <div id="eventBanner"></div>
+      <div id="log" aria-live="polite"></div>
+      <div id="sectorTag"><span id="sectorName"></span></div>
+    </section>
+    <aside id="panel">
+      <div id="goal"></div>
+      <nav id="tabs"></nav>
+      <div id="tabContent"></div>
+    </aside>
+  </main>
+</div>
+<div id="toasts"></div>
+<div id="modal" hidden><div class="modal-box" role="dialog" aria-modal="true"><div id="modalBody"></div></div></div>
+
+<script>
+'use strict';
+/* ===== Utilidades: RNG, ruído, cores, formatação e fonte bitmap 3x5 ===== */
+const U = (() => {
+  const U = {};
+  U.clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  U.lerp = (a, b, t) => a + (b - a) * t;
+  U.rand = (a = 1, b) => (b === undefined ? Math.random() * a : a + Math.random() * (b - a));
+  U.randi = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
+  U.pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  U.wpick = (items, w) => {
+    let s = 0;
+    for (const x of w) s += x;
+    let r = Math.random() * s;
+    for (let i = 0; i < items.length; i++) { r -= w[i]; if (r <= 0) return items[i]; }
+    return items[items.length - 1];
+  };
+  U.smooth = (a, b, x) => { const t = U.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+  U.mulberry = seed => {
+    let s = seed >>> 0;
+    return () => {
+      s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  // Value noise 3D (suave, determinístico por seed)
+  U.noise3 = seed => {
+    const r = U.mulberry(seed * 9973 + 17);
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    for (let i = 255; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const t = p[i]; p[i] = p[j]; p[j] = t; }
+    const P = new Uint8Array(512);
+    for (let i = 0; i < 512; i++) P[i] = p[i & 255];
+    const V = new Float32Array(256);
+    for (let i = 0; i < 256; i++) V[i] = r();
+    return (x, y, z) => {
+      const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+      const xf = x - xi, yf = y - yi, zf = z - zi;
+      const X = xi & 255, Y = yi & 255, Z = zi & 255;
+      const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+      const A = P[X] + Y, B = P[X + 1] + Y;
+      const AA = P[A] + Z, AB = P[A + 1] + Z, BA = P[B] + Z, BB = P[B + 1] + Z;
+      const x1 = V[P[AA]] + (V[P[BA]] - V[P[AA]]) * u;
+      const x2 = V[P[AB]] + (V[P[BB]] - V[P[AB]]) * u;
+      const x3 = V[P[AA + 1]] + (V[P[BA + 1]] - V[P[AA + 1]]) * u;
+      const x4 = V[P[AB + 1]] + (V[P[BB + 1]] - V[P[AB + 1]]) * u;
+      const y1 = x1 + (x2 - x1) * v, y2 = x3 + (x4 - x3) * v;
+      return y1 + (y2 - y1) * w;
+    };
+  };
+  U.fbm = (n, x, y, z, oct = 4) => {
+    let a = 0.5, f = 1, s = 0, t = 0;
+    for (let i = 0; i < oct; i++) { s += a * n(x * f, y * f, z * f); t += a; a *= 0.5; f *= 2.03; }
+    return s / t;
+  };
+
+  // Dithering ordenado (Bayer 4x4) — devolve -0.5..0.5
+  const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16 - 0.5);
+  U.bayer = (x, y) => BAY[((y & 3) << 2) + (x & 3)];
+
+  U.hex = h => {
+    h = h.replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  };
+  U.rgb = (c, a) => (a === undefined ? `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})` : `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`);
+  U.mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
+  U.canvas = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return c; };
+
+  // Sprite a partir de strings; outline opcional gera contorno escuro de 1px
+  U.sprite = (rows, pal, outline) => {
+    const h = rows.length, w = rows[0].length, o = outline ? 1 : 0;
+    const c = U.canvas(w + o * 2, h + o * 2), g = c.getContext('2d');
+    const solid = (x, y) => y >= 0 && y < h && x >= 0 && x < w && rows[y][x] !== '.' && rows[y][x] !== ' ';
+    if (outline) {
+      g.fillStyle = typeof outline === 'string' ? outline : '#06060e';
+      for (let y = -1; y <= h; y++) for (let x = -1; x <= w; x++) {
+        if (solid(x, y)) continue;
+        if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) g.fillRect(x + o, y + o, 1, 1);
+      }
+    }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const ch = rows[y][x];
+      if (ch === '.' || ch === ' ') continue;
+      g.fillStyle = pal[ch] || '#f0f';
+      g.fillRect(x + o, y + o, 1, 1);
+    }
+    return c;
+  };
+  U.flipX = src => {
+    const c = U.canvas(src.width, src.height), g = c.getContext('2d');
+    g.translate(src.width, 0); g.scale(-1, 1); g.drawImage(src, 0, 0);
+    return c;
+  };
+
+  const SUF = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc', 'UDc', 'DDc', 'TDc', 'QaDc', 'QiDc'];
+  U.fmt = n => {
+    if (n === Infinity) return '∞';
+    if (!isFinite(n)) return '0';
+    if (n < 0) return '-' + U.fmt(-n);
+    if (n < 10) return (Math.floor(n * 10) / 10).toFixed(n % 1 > 0.05 ? 1 : 0);
+    if (n < 1000) return Math.floor(n).toString();
+    const e = Math.floor(Math.log10(n) / 3);
+    if (e >= SUF.length) return n.toExponential(2).replace('+', '');
+    const v = n / Math.pow(1000, e);
+    return (v < 10 ? Math.floor(v * 100) / 100 : v < 100 ? Math.floor(v * 10) / 10 : Math.floor(v)) + SUF[e];
+  };
+  U.fmtTime = s => {
+    s = Math.max(0, Math.floor(s));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${x}s`;
+    return `${x}s`;
+  };
+
+  /* ---- Fonte bitmap 3x5 para textos dentro do canvas ---- */
+  const GL = {
+    '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001111001111',
+    '4': '101101111001001', '5': '111100111001111', '6': '111100111101111', '7': '111001010010010',
+    '8': '111101111101111', '9': '111101111001111',
+    A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110',
+    E: '111100110100111', F: '111100110100100', G: '011100101101011', H: '101101111101101',
+    I: '111010010010111', J: '001001001101010', K: '101101110101101', L: '100100100100111',
+    M: '101111111101101', N: '110101101101101', O: '010101101101010', P: '110101110100100',
+    Q: '010101101110011', R: '110101110101101', S: '011100010001110', T: '111010010010010',
+    U: '101101101101111', V: '101101101101010', W: '101101111111101', X: '101101010101101',
+    Y: '101101010010010', Z: '111001010100111',
+    '+': '000010111010000', '-': '000000111000000', '.': '000000000000010', ',': '000000000010100',
+    '!': '010010010000010', '%': '101001010100101', ':': '000010000010000', '/': '001001010100100',
+    '?': '111001010000010', ' ': '000000000000000', '×': '000101010101000', '(': '010100100100010',
+    ')': '010001001001010', '>': '100010001010100', '<': '001010100010001', '#': '101111101111101',
+    '*': '000101010101000', "'": '010010000000000', '=': '000111000111000'
+  };
+  U.norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  U.textW = (s, sc = 1) => U.norm(s).length * 4 * sc - sc;
+  U.text = (ctx, str, x, y, col, sc = 1, align = 'left', shadow = 'rgba(4,3,12,0.9)') => {
+    const s = U.norm(str);
+    const w = s.length * 4 * sc - sc;
+    if (align === 'center') x -= Math.floor(w / 2); else if (align === 'right') x -= w;
+    x = Math.round(x); y = Math.round(y);
+    const draw = (ox, oy, c) => {
+      ctx.fillStyle = c;
+      for (let k = 0; k < s.length; k++) {
+        const g = GL[s[k]] || GL['?'];
+        for (let j = 0; j < 15; j++) if (g.charCodeAt(j) === 49) ctx.fillRect(x + ox + k * 4 * sc + (j % 3) * sc, y + oy + Math.floor(j / 3) * sc, sc, sc);
+      }
+    };
+    if (shadow) { draw(sc, 0, shadow); draw(0, sc, shadow); draw(sc, sc, shadow); }
+    draw(0, 0, col);
+    return w;
+  };
+
+  U.store = {
+    get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+    del(k) { try { window.localStorage.removeItem(k); } catch (e) { /* sem storage */ } }
+  };
+  return U;
+})();
+
+'use strict';
+/* ===== Dados do jogo: minérios, setores, melhorias, pesquisa, prestígio, conquistas, missões ===== */
+
+const ORES = [
+  { id: 'ferro', name: 'Ferro', ingot: 'Aço', val: 1, col: ['#3a2f2c', '#6b5a52', '#9a8478', '#c9b3a3', '#efe0d2'] },
+  { id: 'cobre', name: 'Cobre', ingot: 'Lingote de Cobre', val: 5, col: ['#4a1f12', '#8a3a1c', '#c8622a', '#ee9550', '#ffd0a0'] },
+  { id: 'silicio', name: 'Silício', ingot: 'Wafer de Silício', val: 22, col: ['#1c2433', '#34465e', '#5a7591', '#8eaec8', '#d6ecff'] },
+  { id: 'titanio', name: 'Titânio', ingot: 'Liga de Titânio', val: 100, col: ['#163038', '#2f6470', '#58a6b3', '#9ae6ec', '#effeff'] },
+  { id: 'ouro', name: 'Ouro', ingot: 'Barra de Ouro', val: 450, col: ['#4a3205', '#8a5e0a', '#d39b16', '#ffd23f', '#fff3b0'] },
+  { id: 'platina', name: 'Platina', ingot: 'Barra de Platina', val: 2000, col: ['#2b2b38', '#585a72', '#9a9db8', '#d4d7ee', '#ffffff'] },
+  { id: 'iridio', name: 'Irídio', ingot: 'Liga de Irídio', val: 9000, col: ['#25103a', '#4d2378', '#8040c0', '#b67cff', '#e8d0ff'] },
+  { id: 'cristal', name: 'Cristal Quântico', ingot: 'Matriz Quântica', val: 42000, col: ['#06323a', '#0b6e78', '#19c2c9', '#6effe9', '#e0fffb'], glow: true },
+  { id: 'materia', name: 'Matéria Escura', ingot: 'Núcleo Sombrio', val: 2e5, col: ['#1a0026', '#4a0060', '#8a0a9c', '#e02ac8', '#ffb0f4'], glow: true },
+  { id: 'neutronio', name: 'Neutrônio', ingot: 'Esfera de Neutrônio', val: 1e6, col: ['#1a1a40', '#3a4aa0', '#6a9cff', '#c0e0ff', '#ffffff'], glow: true }
+];
+
+const SECTORS = [
+  {
+    name: 'Cinturão de Vesta', desc: 'Rochas ferrosas à deriva perto de um planeta árido. O ponto de partida de toda mineradora.',
+    ores: [0, 1, 2], w: [0.78, 0.2, 0.02], cost: 0, req: 0,
+    rock: ['#2a2320', '#4a3d36', '#6e5d52', '#97836f', '#c4ae96'],
+    neb: { c: ['#07060f', '#120d2a', '#22164a', '#3a2266'], alt: ['#101a3a', '#1c2e62', '#2e4a8e'], star: '#cfd8ff' },
+    planet: { type: 'rock', pal: ['#140d0a', '#3a2a20', '#6a4a32', '#9a6e48', '#c79a6a', '#ecd2a4'], emi: ['#000000', '#000000', '#000000'], atm: '#e8b88a', tilt: 0.25, spin: 0.035 }
+  },
+  {
+    name: 'Anéis de Kronos', desc: 'Um gigante gasoso envolto em anéis. Os detritos orbitais são ricos em cobre e silício.',
+    ores: [1, 2, 3], w: [0.62, 0.3, 0.08], cost: 3000, req: 15,
+    rock: ['#1e1a24', '#3b3344', '#5e5268', '#8a7a90', '#b8a8b8'],
+    neb: { c: ['#040a0e', '#08202a', '#0f3a44', '#1a5a60'], alt: ['#0c1e26', '#163a48', '#26607a'], star: '#c8fff8' },
+    planet: { type: 'gas', bands: 9, pal: ['#1a0e06', '#4a2a10', '#8a5a24', '#c88a3e', '#e8b868', '#fff0c8'], emi: ['#000000', '#000000', '#000000'], atm: '#ffd89a', tilt: -0.3, spin: 0.06, ring: { inner: 1.35, outer: 2.2, flat: 0.24, tilt: -0.3, col: ['#5a4430', '#a88a60', '#e8d4a4'] } }
+  },
+  {
+    name: 'Nebulosa Carmesim', desc: 'Gases ionizados escondem asteroides de titânio. Um mundo de lava ilumina o vazio.',
+    ores: [2, 3, 4], w: [0.6, 0.3, 0.1], cost: 1.2e5, req: 20,
+    rock: ['#241014', '#45202a', '#6e3640', '#9a5458', '#c8847a'],
+    neb: { c: ['#0c0306', '#2a0810', '#4e1020', '#7a1c2a'], alt: ['#2a0c08', '#5a1e10', '#8a3a18'], star: '#ffd8d0' },
+    planet: { type: 'lava', pal: ['#080404', '#1e0e0c', '#3a1a14', '#5a2a1e', '#7a3a2a', '#9a5038'], emi: ['#8a1e04', '#ff6a10', '#ffe070'], atm: '#ff6a3a', tilt: 0.15, spin: 0.045 }
+  },
+  {
+    name: 'Campo de Hélios', desc: 'Sob a luz de um gigante de gelo, ouro e platina reluzem entre as rochas.',
+    ores: [3, 4, 5], w: [0.58, 0.32, 0.1], cost: 5e6, req: 25,
+    rock: ['#1a1e24', '#323a44', '#505c6a', '#7a8a98', '#aebccb'],
+    neb: { c: ['#0a0602', '#24140a', '#4a2a10', '#7a4a18'], alt: ['#2a1a04', '#5a3a0a', '#9a6a1a'], star: '#fff0c0' },
+    planet: { type: 'ice', pal: ['#06101a', '#123050', '#2a5a8a', '#5a9ac8', '#a0d4f0', '#f0fbff'], emi: ['#000000', '#000000', '#000000'], atm: '#a8e8ff', tilt: -0.2, spin: 0.03, ring: { inner: 1.4, outer: 1.95, flat: 0.2, tilt: 0.22, col: ['#4a6a80', '#9ac0d8', '#e0f4ff'] } }
+  },
+  {
+    name: 'Abismo Violeta', desc: 'Um vazio púrpura onde o irídio cristaliza no frio absoluto.',
+    ores: [4, 5, 6], w: [0.58, 0.32, 0.1], cost: 2.5e8, req: 30,
+    rock: ['#16101e', '#2c2040', '#463462', '#6a5090', '#9a80c0'],
+    neb: { c: ['#06030c', '#160a2a', '#2a124e', '#46207a'], alt: ['#200a30', '#40145a', '#6a2a8a'], star: '#e8d8ff' },
+    planet: { type: 'gas', bands: 14, pal: ['#0a0614', '#24143e', '#40246a', '#6a3a9a', '#9a6ac8', '#e0c8ff'], emi: ['#000000', '#000000', '#000000'], atm: '#c08aff', tilt: 0.35, spin: 0.075 }
+  },
+  {
+    name: 'Fenda Cristalina', desc: 'Um planeta de cristal fraturado emite pulsos quânticos. Irídio em abundância.',
+    ores: [5, 6, 7], w: [0.56, 0.32, 0.12], cost: 1.5e10, req: 35,
+    rock: ['#0e1a1e', '#1a3238', '#2a5058', '#4a7a80', '#7ab0b0'],
+    neb: { c: ['#020a0c', '#04202a', '#083a48', '#0e5a6a'], alt: ['#04281e', '#0a4a38', '#147a5a'], star: '#d0ffff' },
+    planet: { type: 'crystal', pal: ['#020c10', '#06303a', '#0e5a66', '#1a8a94', '#4ac8c8', '#b0fff4'], emi: ['#0e8a8a', '#4affff', '#e0ffff'], atm: '#6affff', tilt: -0.15, spin: 0.03 }
+  },
+  {
+    name: 'Horizonte Sombrio', desc: 'Matéria escura pulsa nas sombras de um mundo morto. Poucos voltam daqui.',
+    ores: [6, 7, 8], w: [0.55, 0.33, 0.12], cost: 1e12, req: 40,
+    rock: ['#100a12', '#201422', '#36223a', '#523456', '#7a5080'],
+    neb: { c: ['#040205', '#12061a', '#22082e', '#3a0c48'], alt: ['#1a0410', '#3a0820', '#5a1032'], star: '#ffd0f0' },
+    planet: { type: 'dark', pal: ['#030204', '#0c0810', '#18101e', '#24182c', '#34223e', '#4a3054'], emi: ['#5a0a6a', '#d02ab8', '#ffb0f0'], atm: '#d02ab8', tilt: 0.4, spin: 0.04 }
+  },
+  {
+    name: 'Núcleo do Magnetar', desc: 'Uma estrela de nêutrons distorce o espaço. O minério mais denso do universo aguarda.',
+    ores: [7, 8, 9], w: [0.52, 0.34, 0.14], cost: 8e13, req: 50,
+    rock: ['#0c1020', '#182040', '#283664', '#405490', '#6a84c0'],
+    neb: { c: ['#02030a', '#060a24', '#0c1640', '#142460'], alt: ['#0a0a30', '#1a1a5a', '#2a3a9a'], star: '#e0e8ff' },
+    planet: { type: 'star', pal: ['#1a3aa0', '#3a6aff', '#7aa8ff', '#c0dcff', '#ffffff'], emi: ['#000000', '#000000', '#000000'], atm: '#6a9cff', tilt: 0, spin: 0.1 }
+  }
+];
+
+// eff(l) mostra o efeito no nível l (usa D, definido em game.js)
+const UPGRADES = [
+  { id: 'fleet', name: 'Drone Minerador', icon: 'drone', base: 15, mult: 1.42, desc: 'Adiciona um drone autônomo à frota.', max: () => D.maxDrones() - 1, eff: l => `${1 + l} drones` },
+  { id: 'laser', name: 'Laser de Mineração', icon: 'laser', base: 20, mult: 1.6, desc: 'Aumenta o dano dos lasers da frota. Novas cores a cada 12 níveis.', eff: l => `${U.fmt(D.dpsAt(l))} dano/s` },
+  { id: 'cargo', name: 'Compartimento de Carga', icon: 'cargo', base: 30, mult: 1.55, desc: 'Cada viagem de drone traz mais minério.', eff: l => `${U.fmt(D.cargoAt(l))} un./viagem` },
+  { id: 'speed', name: 'Propulsores Iônicos', icon: 'speed', base: 40, mult: 1.85, desc: 'Drones voam mais rápido entre a estação e as rochas.', max: () => 25, eff: l => `${Math.round(D.speedAt(l))} km/s` },
+  { id: 'click', name: 'Broca de Plasma', icon: 'click', base: 10, mult: 1.5, desc: 'Mais dano por clique. Também soma 5% do dano total da frota.', eff: l => `${U.fmt(D.clickAt(l))} /clique` },
+  { id: 'crit', name: 'Mira de Precisão', icon: 'crit', base: 120, mult: 2.1, desc: 'Chance de golpe crítico (dano ×5) nos cliques.', max: () => 20, eff: l => `${Math.round(D.critAt(l) * 100)}% crítico` },
+  { id: 'field', name: 'Campo Gravitacional', icon: 'field', base: 150, mult: 2.5, desc: 'Atrai mais asteroides simultâneos para o setor.', max: () => 10, eff: l => `${5 + l} asteroides` },
+  { id: 'scanner', name: 'Scanner Profundo', icon: 'scanner', base: 250, mult: 2.3, desc: 'Encontra asteroides ricos (×5 minério, cintilantes).', max: () => 20, eff: l => `${(D.richAt(l) * 100).toFixed(1)}% ricos` },
+  { id: 'refine', name: 'Fornalha de Fusão', icon: 'flame', base: 200, mult: 1.75, desc: 'Refino mais rápido. Lotes dobram a cada 3 níveis.', max: () => 40, eff: l => `${D.refineTimeAt(l).toFixed(1)}s · lote ${U.fmt(D.batchAt(l))}` }
+];
+
+const RESEARCH = [
+  { id: 'autosell', name: 'Corretora Automática', desc: 'Libera a venda automática no Mercado.', cost: 8 },
+  { id: 'furn2', name: 'Fornalha II', desc: '+1 fornalha na Refinaria.', cost: 12 },
+  { id: 'spectro', name: 'Espectrômetro', desc: 'Asteroides ricos aparecem 2× mais.', cost: 25 },
+  { id: 'turret', name: 'Torreta da Estação', desc: 'A estação dispara contra asteroides com 60% do dano do clique.', cost: 40 },
+  { id: 'aim', name: 'Mira Assistida', desc: '+5% de chance de crítico.', cost: 50, req: ['turret'] },
+  { id: 'furn3', name: 'Fornalha III', desc: '+1 fornalha na Refinaria.', cost: 70, req: ['furn2'] },
+  { id: 'hangar1', name: 'Hangar Expandido', desc: 'Frota máxima +10 drones.', cost: 90 },
+  { id: 'comet', name: 'Radar de Cometas', desc: 'Cometas dourados aparecem 2× mais.', cost: 110 },
+  { id: 'telemetry', name: 'Telemetria Remota', desc: 'Ganhos offline sobem de 50% para 100%.', cost: 150 },
+  { id: 'reson', name: 'Laser Ressonante', desc: 'Dano dos drones ×1,5.', cost: 220 },
+  { id: 'futures', name: 'Contratos Futuros', desc: '+15% no preço de venda de tudo.', cost: 300, req: ['autosell'] },
+  { id: 'navai', name: 'IA de Navegação', desc: 'Dados obtidos ×2.', cost: 400 },
+  { id: 'plasma', name: 'Plasma Térmico', desc: 'Refino 2× mais rápido.', cost: 550, req: ['furn3'] },
+  { id: 'turret2', name: 'Torreta Gêmea', desc: 'Cadência da torreta ×2,5.', cost: 700, req: ['turret'] },
+  { id: 'collector', name: 'Drones Coletores', desc: '+30% de minério bônus ao destruir asteroides.', cost: 900 },
+  { id: 'furn4', name: 'Fornalha IV', desc: '+1 fornalha na Refinaria.', cost: 1200, req: ['plasma'] },
+  { id: 'metal', name: 'Metalurgia Avançada', desc: 'Lingotes valem ×1,5.', cost: 1600 },
+  { id: 'warp', name: 'Motor de Dobra', desc: 'Custo em créditos dos setores -30%.', cost: 2500 },
+  { id: 'hangar2', name: 'Doca Orbital', desc: 'Frota máxima +15 drones.', cost: 4000, req: ['hangar1'] },
+  { id: 'furn5', name: 'Fornalha V', desc: '+1 fornalha na Refinaria.', cost: 6000, req: ['furn4'] },
+  { id: 'singular', name: 'Laser de Singularidade', desc: 'Dano dos drones ×3.', cost: 15000, req: ['reson'] }
+];
+
+const PRESTIGE = [
+  { id: 'reson', name: 'Ressonância Estelar', desc: 'Valor de todos os minérios ×1,25 (acumula).', cost: l => Math.ceil(3 * Math.pow(1.7, l)), max: 60 },
+  { id: 'drill', name: 'Brocas Ancestrais', desc: 'Dano de drones e cliques ×1,5 (acumula).', cost: l => Math.ceil(4 * Math.pow(1.8, l)), max: 40 },
+  { id: 'legacy', name: 'Herança Robótica', desc: 'Começa cada jornada com +2 drones.', cost: l => 2 + l * 2, max: 10 },
+  { id: 'shortcut', name: 'Atalho Estelar', desc: 'Mantém +1 setor desbloqueado após o salto.', cost: l => 5 * (l + 1), max: 7 },
+  { id: 'memory', name: 'Memória Quântica', desc: 'Mantém todas as pesquisas após o salto.', cost: () => 25, max: 1 },
+  { id: 'golden', name: 'Cauda Dourada', desc: 'Recompensas de cometas ×2.', cost: () => 8, max: 1 },
+  { id: 'chrono', name: 'Cronoestase', desc: '+4h no limite de ganhos offline.', cost: l => 4 + l * 4, max: 4 }
+];
+
+const ACH = [
+  { id: 'click1', n: 'Primeiro Golpe', d: 'Minere com um clique.', c: s => s.stats.clicks >= 1 },
+  { id: 'click1k', n: 'Dedo de Aço', d: 'Clique 1.000 vezes.', c: s => s.stats.clicks >= 1000 },
+  { id: 'crit100', n: 'Golpe Certeiro', d: 'Acerte 100 críticos.', c: s => s.stats.crits >= 100 },
+  { id: 'ast100', n: 'Demolidor', d: 'Destrua 100 asteroides.', c: s => s.stats.asteroids >= 100 },
+  { id: 'ast1k', n: 'Cinturão Limpo', d: 'Destrua 1.000 asteroides.', c: s => s.stats.asteroids >= 1000 },
+  { id: 'ast10k', n: 'Devorador de Mundos', d: 'Destrua 10.000 asteroides.', c: s => s.stats.asteroids >= 10000 },
+  { id: 'rich1', n: 'Veio Precioso', d: 'Destrua um asteroide rico.', c: s => s.stats.rich >= 1 },
+  { id: 'rich50', n: 'Garimpeiro Estelar', d: 'Destrua 50 asteroides ricos.', c: s => s.stats.rich >= 50 },
+  { id: 'cr1k', n: 'Primeiro Milhar', d: 'Ganhe 1K créditos no total.', c: s => s.lifeCredits >= 1e3 },
+  { id: 'cr1m', n: 'Milionário Orbital', d: 'Ganhe 1M créditos no total.', c: s => s.lifeCredits >= 1e6 },
+  { id: 'cr1b', n: 'Magnata do Vácuo', d: 'Ganhe 1B créditos no total.', c: s => s.lifeCredits >= 1e9 },
+  { id: 'cr1t', n: 'Trilionário Cósmico', d: 'Ganhe 1T créditos no total.', c: s => s.lifeCredits >= 1e12 },
+  { id: 'cr1qa', n: 'Império Galáctico', d: 'Ganhe 1Qa créditos no total.', c: s => s.lifeCredits >= 1e15 },
+  { id: 'dr5', n: 'Esquadrilha', d: 'Tenha 5 drones.', c: s => s.upg.fleet + 1 >= 5 },
+  { id: 'dr15', n: 'Enxame', d: 'Tenha 15 drones.', c: s => s.upg.fleet + 1 >= 15 },
+  { id: 'dr30', n: 'Armada', d: 'Tenha 30 drones.', c: s => s.upg.fleet + 1 >= 30 },
+  { id: 'ing1', n: 'Forjador', d: 'Produza seu primeiro lingote.', c: s => s.stats.ingots >= 1 },
+  { id: 'ing500', n: 'Siderúrgica', d: 'Produza 500 lingotes.', c: s => s.stats.ingots >= 500 },
+  { id: 'sec3', n: 'Explorador', d: 'Alcance o 3º setor.', c: s => s.maxSector >= 2 },
+  { id: 'sec6', n: 'Desbravador', d: 'Alcance o 6º setor.', c: s => s.maxSector >= 5 },
+  { id: 'sec8', n: 'Fim do Mapa', d: 'Alcance o Núcleo do Magnetar.', c: s => s.maxSector >= 7 },
+  { id: 'comet1', n: 'Caçador de Cometas', d: 'Capture um cometa dourado.', c: s => s.stats.comets >= 1 },
+  { id: 'comet25', n: 'Colecionador Celeste', d: 'Capture 25 cometas.', c: s => s.stats.comets >= 25 },
+  { id: 'res10', n: 'Cientista', d: 'Conclua 10 pesquisas.', c: s => Object.keys(s.research).length >= 10 },
+  { id: 'resall', n: 'Mente Brilhante', d: 'Conclua todas as pesquisas.', c: s => Object.keys(s.research).length >= RESEARCH.length },
+  { id: 'pre1', n: 'Salto no Escuro', d: 'Realize um Salto Quântico.', c: s => s.stats.prestiges >= 1 },
+  { id: 'pre5', n: 'Viajante Quântico', d: 'Realize 5 Saltos Quânticos.', c: s => s.stats.prestiges >= 5 },
+  { id: 'hour', n: 'Dedicação', d: 'Jogue por 1 hora.', c: s => s.stats.play >= 3600 }
+];
+
+const GOALS = [
+  { t: 'Clique em um asteroide para minerar', c: s => s.stats.clicks >= 1, r: 5 },
+  { t: 'Minere 25 unidades de minério', c: s => s.stats.mined >= 25, r: 10 },
+  { t: 'Venda minério na aba Mercado', c: s => s.stats.sold >= 1, r: 10 },
+  { t: 'Compre um Drone Minerador (aba Frota)', c: s => s.upg.fleet >= 1, r: 20 },
+  { t: 'Melhore o Laser de Mineração ao nível 3', c: s => s.upg.laser >= 3, r: 50 },
+  { t: 'Destrua 20 asteroides', c: s => s.stats.asteroids >= 20, r: 80 },
+  { t: 'Ligue uma fornalha com Ferro e produza 3 Aço', c: s => s.stats.ingots >= 3, r: 100 },
+  { t: 'Conclua uma pesquisa (aba Pesquisa)', c: s => Object.keys(s.research).length >= 1, r: 150 },
+  { t: 'Tenha 5 drones na frota', c: s => s.upg.fleet >= 4, r: 300 },
+  { t: 'Desbloqueie os Anéis de Kronos (aba Setores)', c: s => s.maxSector >= 1, r: 1000 },
+  { t: 'Capture um cometa dourado', c: s => s.stats.comets >= 1, r: 2000 },
+  { t: 'Tenha 10 drones na frota', c: s => s.upg.fleet >= 9, r: 5000 },
+  { t: 'Chegue à Nebulosa Carmesim', c: s => s.maxSector >= 2, r: 2e4 },
+  { t: 'Destrua 25 asteroides ricos', c: s => s.stats.rich >= 25, r: 1e5 },
+  { t: 'Chegue ao Campo de Hélios', c: s => s.maxSector >= 3, r: 5e5 },
+  { t: 'Realize um Salto Quântico (aba Salto)', c: s => s.stats.prestiges >= 1, r: 1e6 },
+  { t: 'Chegue ao Abismo Violeta', c: s => s.maxSector >= 4, r: 1e8 },
+  { t: 'Chegue à Fenda Cristalina', c: s => s.maxSector >= 5, r: 5e9 },
+  { t: 'Chegue ao Horizonte Sombrio', c: s => s.maxSector >= 6, r: 3e11 },
+  { t: 'Alcance o Núcleo do Magnetar', c: s => s.maxSector >= 7, r: 2e13 },
+  { t: 'Acumule 1Qi créditos no total', c: s => s.lifeCredits >= 1e18, r: 1e16 }
+];
+
+const TABS = [
+  { id: 'frota', name: 'Frota', icon: 'drone' },
+  { id: 'refino', name: 'Refino', icon: 'flame' },
+  { id: 'mercado', name: 'Mercado', icon: 'chart' },
+  { id: 'pesquisa', name: 'Pesquisa', icon: 'flask' },
+  { id: 'setores', name: 'Setores', icon: 'planet' },
+  { id: 'salto', name: 'Salto', icon: 'star' },
+  { id: 'trofeus', name: 'Troféus', icon: 'trophy' },
+  { id: 'config', name: 'Ajustes', icon: 'gear' }
+];
+
+'use strict';
+/* ===== Efeitos sonoros sintetizados (WebAudio) ===== */
+const SFX = (() => {
+  let ctx = null, master = null, noiseBuf = null;
+  const last = {};
+  function init() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = 0.22;
+      master.connect(ctx.destination);
+      noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    } catch (e) { ctx = null; }
+  }
+  function tone(f0, f1, dur, type = 'square', vol = 0.2, delay = 0) {
+    const t = ctx.currentTime + delay;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function noise(dur, vol = 0.2, freq = 1200, delay = 0) {
+    const t = ctx.currentTime + delay;
+    const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = noiseBuf;
+    f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 0.8;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+  }
+  const defs = {
+    hit: () => { tone(260 + Math.random() * 90, 110, 0.06, 'square', 0.08); noise(0.05, 0.08, 2200); },
+    crit: () => { tone(700, 160, 0.14, 'square', 0.12); noise(0.12, 0.16, 3200); },
+    boom: () => { noise(0.4, 0.28, 420); tone(130, 38, 0.32, 'triangle', 0.22); },
+    coin: () => { tone(988, 988, 0.05, 'square', 0.07); tone(1319, 1319, 0.09, 'square', 0.07, 0.05); },
+    buy: () => { tone(440, 660, 0.07, 'square', 0.08); tone(660, 990, 0.09, 'square', 0.07, 0.06); },
+    comet: () => { [0, 0.07, 0.14, 0.21].forEach((d, k) => tone(660 + k * 220, 880 + k * 220, 0.12, 'triangle', 0.1, d)); },
+    warp: () => { tone(70, 1400, 1.1, 'sawtooth', 0.07); noise(1.3, 0.12, 700); },
+    unlock: () => { [523, 659, 784, 1046].forEach((f, k) => tone(f, f, 0.16, 'square', 0.08, k * 0.09)); },
+    ach: () => { [784, 988, 1175].forEach((f, k) => tone(f, f, 0.12, 'triangle', 0.1, k * 0.07)); },
+    zap: () => tone(1100, 320, 0.07, 'sawtooth', 0.04),
+    ui: () => tone(520, 620, 0.03, 'square', 0.04),
+    deny: () => tone(180, 120, 0.1, 'square', 0.06),
+    prestige: () => { tone(60, 2000, 2.0, 'sawtooth', 0.08); noise(2.0, 0.15, 500); [262, 330, 392, 523, 659].forEach((f, k) => tone(f, f, 0.5, 'triangle', 0.08, 1 + k * 0.12)); }
+  };
+  function play(name, gap = 0.04) {
+    if (typeof S === 'undefined' || !S || !S.settings.sound) return;
+    init();
+    if (!ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    if (last[name] && now - last[name] < gap) return;
+    last[name] = now;
+    try { defs[name] && defs[name](); } catch (e) { /* áudio indisponível */ }
+  }
+  return { play, init };
+})();
+
+'use strict';
+/* ===== Gráficos procedurais em pixel art: asteroides, planetas, nebulosas, estação, drones, ícones ===== */
+const GFX = (() => {
+  const X = {};
+  const norm3 = v => { const m = Math.hypot(v[0], v[1], v[2]); return [v[0] / m, v[1] / m, v[2] / m]; };
+  const LIGHT = norm3([-0.55, -0.62, 0.56]);
+
+  /* ---------- Asteroide: rocha irregular, crateras, veios de minério, rotação no plano ---------- */
+  X.makeAsteroid = function (o) {
+    const R = o.r, S = Math.ceil(R * 2.5) + 4, N = o.frames || 24, half = S / 2;
+    const rnd = U.mulberry(o.seed);
+    const nA = U.noise3(o.seed), nB = U.noise3(o.seed + 7777);
+    const harm = [];
+    for (let k = 2; k <= 6; k++) harm.push([k, (rnd() * 0.12 + 0.02) / (k * 0.6), rnd() * 6.2832]);
+    const shape = th => { let v = 0.9; for (const h of harm) v += h[1] * Math.sin(h[0] * th + h[2]); return v; };
+    const craters = [];
+    const nc = 1 + Math.floor(rnd() * 3 + R / 6);
+    for (let i = 0; i < nc; i++) {
+      const z = 0.3 + rnd() * 0.7, a = rnd() * 6.2832, s = Math.sqrt(1 - z * z);
+      const cr = 0.16 + rnd() * 0.26;
+      craters.push([s * Math.cos(a), s * Math.sin(a), z, Math.cos(cr), Math.cos(cr * 1.3)]);
+    }
+    const n = S * S;
+    const ins = new Uint8Array(n), NX = new Float32Array(n), NY = new Float32Array(n), NZ = new Float32Array(n);
+    const AL = new Float32Array(n), OR = new Uint8Array(n);
+    const thr = 0.7 - (o.density || 0);
+    for (let gy = 0; gy < S; gy++) for (let gx = 0; gx < S; gx++) {
+      const ox = gx + 0.5 - half, oy = gy + 0.5 - half;
+      const Re = R * shape(Math.atan2(oy, ox));
+      if (Math.hypot(ox, oy) > Re) continue;
+      const i = gy * S + gx;
+      ins[i] = 1;
+      const u = ox / Re, v = oy / Re, w = Math.sqrt(Math.max(0, 1 - u * u - v * v));
+      const f = 2.4, e = 0.07;
+      const h0 = U.fbm(nA, u * f + 9, v * f + 9, w * f + 9, 3);
+      const hx = U.fbm(nA, (u + e) * f + 9, v * f + 9, w * f + 9, 3);
+      const hy = U.fbm(nA, u * f + 9, (v + e) * f + 9, w * f + 9, 3);
+      let nx = u - (hx - h0) * 6, ny = v - (hy - h0) * 6, nz = w + 0.12;
+      let alb = h0;
+      for (const c of craters) {
+        const d = u * c[0] + v * c[1] + w * c[2];
+        if (d > c[3]) { nx -= (u - c[0]) * 1.7; ny -= (v - c[1]) * 1.7; alb -= 0.1; }
+        else if (d > c[4]) { nx += (u - c[0]) * 0.9; ny += (v - c[1]) * 0.9; alb += 0.08; }
+      }
+      const m = Math.hypot(nx, ny, nz) || 1;
+      NX[i] = nx / m; NY[i] = ny / m; NZ[i] = nz / m; AL[i] = alb;
+      if (o.density > 0) {
+        const ov = nB(u * 3.4 + 3, v * 3.4 + 3, w * 3.4 + 3) * 0.7 + nB(u * 9 + 1, v * 9 + 1, w * 9 + 1) * 0.3;
+        if (ov > thr) OR[i] = ov > thr + 0.05 && rnd() < 0.45 ? 2 : 1;
+      }
+    }
+    const rock = o.rock.map(U.hex), ore = o.ore.map(U.hex);
+    const outl = rock[0].map(v => v * 0.4);
+    const frames = [];
+    for (let f = 0; f < N; f++) {
+      const ang = (f / N) * 6.2832, ca = Math.cos(ang), sa = Math.sin(ang);
+      const lx = LIGHT[0] * ca + LIGHT[1] * sa, ly = -LIGHT[0] * sa + LIGHT[1] * ca, lz = LIGHT[2];
+      const c = U.canvas(S, S), g = c.getContext('2d'), img = g.createImageData(S, S), d = img.data;
+      const mask = new Uint8Array(n);
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        const dx = x + 0.5 - half, dy = y + 0.5 - half;
+        const gx = Math.floor(dx * ca + dy * sa + half), gy = Math.floor(-dx * sa + dy * ca + half);
+        if (gx < 0 || gy < 0 || gx >= S || gy >= S) continue;
+        const i = gy * S + gx;
+        if (!ins[i]) continue;
+        const p = y * S + x;
+        mask[p] = 1;
+        const dif = Math.max(0, NX[i] * lx + NY[i] * ly + NZ[i] * lz);
+        const val = 0.05 + dif * 0.95 + (AL[i] - 0.5) * 0.55;
+        const b = U.bayer(x, y);
+        let col;
+        if (OR[i]) {
+          let k = Math.floor(val * 4 + 1 + b * 0.8);
+          if (o.glow) k = Math.max(k, 2);
+          if (OR[i] === 2 && ((i * 7 + f * 3) % N) < 2) k = 5;
+          col = k >= 5 ? [255, 255, 255] : ore[U.clamp(k, 0, 4)];
+        } else col = rock[U.clamp(Math.floor(val * 5 + b * 0.9), 0, 4)];
+        const q = p * 4;
+        d[q] = col[0]; d[q + 1] = col[1]; d[q + 2] = col[2]; d[q + 3] = 255;
+      }
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        const p = y * S + x;
+        if (mask[p]) continue;
+        if ((x > 0 && mask[p - 1]) || (x < S - 1 && mask[p + 1]) || (y > 0 && mask[p - S]) || (y < S - 1 && mask[p + S])) {
+          const q = p * 4;
+          d[q] = outl[0]; d[q + 1] = outl[1]; d[q + 2] = outl[2]; d[q + 3] = 255;
+        }
+      }
+      g.putImageData(img, 0, 0);
+      frames.push(c);
+    }
+    return { frames, S, R };
+  };
+
+  /* ---------- Planeta com textura esférica rotativa, atmosfera e anéis ---------- */
+  X.Planet = class {
+    constructor(def, D, seed) {
+      this.def = def; this.D = D;
+      const TW = 192, TH = 96;
+      this.TW = TW; this.TH = TH;
+      const tex = new Float32Array(TW * TH), emi = new Float32Array(TW * TH);
+      const n1 = U.noise3(seed), n2 = U.noise3(seed + 31);
+      for (let ty = 0; ty < TH; ty++) {
+        const lat = (ty / (TH - 1) - 0.5) * Math.PI, cl = Math.cos(lat), sl = Math.sin(lat);
+        for (let tx = 0; tx < TW; tx++) {
+          const lon = (tx / TW) * Math.PI * 2;
+          const px = cl * Math.cos(lon), pz = cl * Math.sin(lon), py = sl;
+          let v = 0, e = 0;
+          switch (def.type) {
+            case 'rock': {
+              v = U.smooth(0.32, 0.7, U.fbm(n1, px * 2 + 4, py * 2 + 4, pz * 2 + 4, 5));
+              const c = U.fbm(n2, px * 5, py * 5, pz * 5, 2);
+              if (c > 0.6) v *= 0.7;
+              break;
+            }
+            case 'gas': {
+              const w = U.fbm(n1, px * 1.6, py * 1.6, pz * 1.6, 4);
+              v = 0.5 + 0.42 * Math.sin(lat * def.bands + w * 2.6) + (U.fbm(n2, px * 6, py * 14, pz * 6, 2) - 0.5) * 0.35;
+              const st = U.fbm(n2, px * 3 + 7, py * 3, pz * 3, 3);
+              if (st > 0.66) v = 0.97;
+              break;
+            }
+            case 'lava': {
+              v = U.fbm(n1, px * 2.5, py * 2.5, pz * 2.5, 4) * 0.8;
+              const c = Math.abs(U.fbm(n2, px * 3, py * 3, pz * 3, 4) - 0.5);
+              e = U.clamp(1 - c * 16, 0, 1);
+              break;
+            }
+            case 'ice':
+              v = U.fbm(n1, px * 2.2, py * 2.2, pz * 2.2, 5) * 0.8 + Math.pow(Math.abs(sl), 6) * 0.6;
+              break;
+            case 'crystal': {
+              const f = U.fbm(n1, px * 2, py * 2, pz * 2, 3) * 7;
+              v = Math.floor(f) / 7 + 0.15;
+              const fr = f % 1;
+              e = fr < 0.07 || fr > 0.93 ? 0.9 : 0;
+              break;
+            }
+            case 'dark': {
+              v = U.fbm(n1, px * 2, py * 2, pz * 2, 4) * 0.5;
+              const s = U.fbm(n2, px * 2.5 + v * 2, py * 6, pz * 2.5, 4);
+              e = U.clamp((s - 0.55) * 6, 0, 1);
+              break;
+            }
+            case 'star':
+              v = U.fbm(n1, px * 6, py * 6, pz * 6, 3);
+              e = 1;
+              break;
+          }
+          tex[ty * TW + tx] = U.clamp(v, 0, 1);
+          emi[ty * TW + tx] = e;
+        }
+      }
+      this.tex = tex; this.emi = emi;
+      this.pal = def.pal.map(U.hex);
+      this.emiPal = def.emi.map(U.hex);
+      this.atm = U.hex(def.atm);
+      const r = D / 2;
+      this.r = r;
+      const P = Math.ceil(D) + 2;
+      this.P = P;
+      this.cv = U.canvas(P, P);
+      this.g = this.cv.getContext('2d');
+      this.img = this.g.createImageData(P, P);
+      const tilt = def.tilt || 0, ct = Math.cos(tilt), st = Math.sin(tilt);
+      const L = norm3([-0.75, -0.45, 0.5]);
+      const idx = [], tyA = [], lonA = [], difA = [], rimA = [], bA = [];
+      for (let y = 0; y < P; y++) for (let x = 0; x < P; x++) {
+        const u = (x + 0.5 - P / 2) / r, v = (y + 0.5 - P / 2) / r, d2 = u * u + v * v;
+        if (d2 > 1) continue;
+        const w = Math.sqrt(1 - d2);
+        const ut = u * ct + v * st, vt = -u * st + v * ct;
+        idx.push((y * P + x) * 4);
+        tyA.push(Math.round((Math.asin(U.clamp(vt, -1, 1)) / Math.PI + 0.5) * (TH - 1)));
+        lonA.push(Math.atan2(ut, w));
+        difA.push(Math.max(0, u * L[0] + v * L[1] + w * L[2]));
+        rimA.push(1 - w);
+        bA.push(U.bayer(x, y));
+      }
+      this.cnt = idx.length;
+      this.idx = Int32Array.from(idx); this.ty = Int16Array.from(tyA); this.lon = Float32Array.from(lonA);
+      this.dif = Float32Array.from(difA); this.rim = Float32Array.from(rimA); this.bay = Float32Array.from(bA);
+
+      // Halo atmosférico pontilhado
+      const isStar = def.type === 'star';
+      const hw = isStar ? Math.ceil(r * 0.9) : Math.max(3, Math.round(r * 0.09));
+      this.hw = hw;
+      const HS = P + hw * 2;
+      this.halo = U.canvas(HS, HS);
+      const hg = this.halo.getContext('2d');
+      const ac = isStar ? this.pal[2] : this.atm;
+      for (let y = 0; y < HS; y++) for (let x = 0; x < HS; x++) {
+        const dx = x + 0.5 - HS / 2, dy = y + 0.5 - HS / 2, dist = Math.hypot(dx, dy);
+        if (dist <= r - 0.5 || dist > r + hw) continue;
+        let a = 1 - (dist - r) / hw;
+        const lit = isStar ? 1 : 0.25 + 0.75 * U.clamp(-(dx * 0.75 + dy * 0.45) / dist + 0.3, 0, 1);
+        a = a * a * lit;
+        const lv = Math.floor(a * 4 + U.bayer(x, y) * 0.9);
+        if (lv <= 0) continue;
+        hg.fillStyle = U.rgb(ac, Math.min(0.85, lv * (isStar ? 0.22 : 0.17)));
+        hg.fillRect(x, y, 1, 1);
+      }
+
+      // Anéis: metade de trás e metade da frente
+      if (def.ring) {
+        const rg = def.ring, ro = rg.outer * r, ri = rg.inner * r, flat = rg.flat, ca = Math.cos(rg.tilt), sa = Math.sin(rg.tilt);
+        const RS = Math.ceil(ro * 2) + 4;
+        this.ringBack = U.canvas(RS, RS); this.ringFront = U.canvas(RS, RS);
+        const gb = this.ringBack.getContext('2d'), gf = this.ringFront.getContext('2d');
+        const rn = U.noise3(seed + 5);
+        const rc = rg.col.map(U.hex);
+        for (let y = 0; y < RS; y++) for (let x = 0; x < RS; x++) {
+          const dx = x + 0.5 - RS / 2, dy = y + 0.5 - RS / 2;
+          const rx = dx * ca + dy * sa, ry = -dx * sa + dy * ca;
+          const e = Math.sqrt(rx * rx + (ry / flat) * (ry / flat));
+          if (e < ri || e > ro) continue;
+          const t = (e - ri) / (ro - ri);
+          const band = rn(t * 22, 0.5, 0.5) * 0.75 + rn(t * 60, 3.5, 0.5) * 0.25;
+          if (band < 0.36) continue;
+          // sombra do planeta sobre o anel (lado oposto à luz)
+          const shadow = ry > 0 && rx > 0 && Math.abs(rx) < r * 1.05 && (dx * 0.75 + dy * 0.45) > 0 ? 0.45 : 1;
+          const k = U.clamp(Math.floor((band - 0.36) * 4.5 + U.bayer(x, y) * 0.8), 0, 2);
+          const col = rc[k].map(c => c * shadow);
+          const g = ry < 0 ? gb : gf;
+          g.fillStyle = U.rgb(col, 0.55 + k * 0.2);
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+    render(t) {
+      const d = this.img.data, def = this.def, pal = this.pal, ep = this.emiPal, atm = this.atm;
+      const TW = this.TW, tex = this.tex, emi = this.emi, isStar = def.type === 'star';
+      const off = t * (def.spin || 0.05);
+      const k2pi = TW / 6.2832;
+      for (let k = 0; k < this.cnt; k++) {
+        let tx = Math.floor((this.lon[k] + off) * k2pi) % TW;
+        if (tx < 0) tx += TW;
+        const ti = this.ty[k] * TW + tx;
+        const v = tex[ti], e = emi[ti], dif = this.dif[k], b = this.bay[k], rim = this.rim[k];
+        let col;
+        if (isStar) {
+          const li = U.clamp(Math.floor((0.55 + v * 0.7 - rim * 0.5) * 5 + b), 0, 4);
+          col = pal[li];
+        } else {
+          const lum = dif * (0.5 + v * 0.65) + v * 0.06;
+          col = pal[U.clamp(Math.floor(lum * 6 + b), 0, 5)];
+          if (e > 0.12) {
+            const ei = U.clamp(Math.floor(e * 3 + b * 0.8), 0, 2);
+            if (ei > 0 || dif < 0.3) col = ep[ei];
+          }
+          if (rim > 0.72) {
+            const a = ((rim - 0.72) / 0.28) * (0.25 + dif * 0.75);
+            if (a + b * 0.5 > 0.3) col = U.mix(col, atm, Math.min(0.85, a));
+          }
+        }
+        const q = this.idx[k];
+        d[q] = col[0]; d[q + 1] = col[1]; d[q + 2] = col[2]; d[q + 3] = 255;
+      }
+      this.g.putImageData(this.img, 0, 0);
+    }
+    drawTo(c, x, y) {
+      x = Math.round(x); y = Math.round(y);
+      if (this.ringBack) c.drawImage(this.ringBack, x - (this.ringBack.width >> 1), y - (this.ringBack.height >> 1));
+      c.drawImage(this.halo, x - (this.halo.width >> 1), y - (this.halo.height >> 1));
+      c.drawImage(this.cv, x - (this.P >> 1), y - (this.P >> 1));
+      if (this.ringFront) c.drawImage(this.ringFront, x - (this.ringFront.width >> 1), y - (this.ringFront.height >> 1));
+    }
+  };
+
+  /* ---------- Nebulosa de fundo com dithering + estrelas fixas ---------- */
+  X.makeNebula = (W, H, neb, seed) => {
+    const c = U.canvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+    const n = U.noise3(seed), m = U.noise3(seed + 3);
+    const C = neb.c.map(U.hex), A = neb.alt.map(U.hex);
+    const sc = 3 / Math.max(W, H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const X0 = x * sc, Y0 = y * sc;
+      const q = U.fbm(n, X0, Y0, 0.5, 3);
+      const v = U.fbm(n, X0 * 1.4 + q * 2.4, Y0 * 1.4 + q * 2.4, 2.5, 5);
+      const dens = U.smooth(0.4, 0.72, v);
+      const hue = U.fbm(m, X0 * 0.9, Y0 * 0.9, 1.1, 3);
+      const b = U.bayer(x, y);
+      const k = U.clamp(Math.floor(dens * 3.99 + b * 0.9), 0, 3);
+      let col = C[k];
+      if (k > 0 && hue + b * 0.05 > 0.53) col = A[k - 1];
+      const i = (y * W + x) * 4;
+      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+    }
+    const r = U.mulberry(seed + 9), sc2 = U.hex(neb.star);
+    const count = Math.floor((W * H) / 120);
+    for (let s = 0; s < count; s++) {
+      const x = Math.floor(r() * W), y = Math.floor(r() * H), br = r();
+      const i = (y * W + x) * 4, f = br < 0.75 ? 0.25 + br * 0.45 : 0.9;
+      const col = br > 0.93 ? sc2 : [235, 240, 255];
+      d[i] = Math.max(d[i], col[0] * f); d[i + 1] = Math.max(d[i + 1], col[1] * f); d[i + 2] = Math.max(d[i + 2], col[2] * f);
+    }
+    g.putImageData(img, 0, 0);
+    for (let s = 0; s < count / 45; s++) {
+      const x = Math.floor(r() * W), y = Math.floor(r() * H);
+      g.fillStyle = neb.star;
+      g.globalAlpha = 0.5; g.fillRect(x - 1, y, 3, 1); g.fillRect(x, y - 1, 1, 3);
+      g.globalAlpha = 0.2; g.fillRect(x - 3, y, 7, 1); g.fillRect(x, y - 3, 1, 7);
+      g.globalAlpha = 1; g.fillStyle = '#ffffff'; g.fillRect(x, y, 1, 1);
+    }
+    return c;
+  };
+
+  X.makeVignette = (W, H) => {
+    const c = U.canvas(W, H), g = c.getContext('2d');
+    g.fillStyle = '#020108';
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const dx = (x / W - 0.5) * 2, dy = (y / H - 0.5) * 2;
+      const d = Math.sqrt(dx * dx * 0.7 + dy * dy * 0.9);
+      const a = (d - 0.78) * 2.2;
+      if (a > U.bayer(x, y) + 0.5) g.fillRect(x, y, 1, 1);
+    }
+    return c;
+  };
+
+  /* ---------- Brilho pixelado (aditivo) ---------- */
+  const glowCache = {};
+  X.glow = (col, r) => {
+    const key = col + r;
+    if (glowCache[key]) return glowCache[key];
+    const S = r * 2 + 1, c = U.canvas(S, S), g = c.getContext('2d'), rgb = U.hex(col);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const d = Math.hypot(x - r, y - r) / (r + 0.5);
+      if (d >= 1) continue;
+      const lv = Math.floor((1 - d) * 4) / 4;
+      if (lv <= 0) continue;
+      g.fillStyle = U.rgb(rgb, Math.pow(lv, 1.6) * 0.85);
+      g.fillRect(x, y, 1, 1);
+    }
+    glowCache[key] = c;
+    return c;
+  };
+
+  /* ---------- Estação orbital ---------- */
+  const HULL = ['#121524', '#262c48', '#434d74', '#6f7ba6', '#a9b3d8', '#e6eaff'];
+  const stCache = {};
+  X.ST_CX = 36; X.ST_CY = 32;
+  X.sphere = (g, cx, cy, r, pal) => {
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+      const d2 = (x * x + y * y) / (r * r);
+      if (d2 > 1) continue;
+      const z = Math.sqrt(1 - d2);
+      const dif = Math.max(0, (x / r) * LIGHT[0] + (y / r) * LIGHT[1] + z * LIGHT[2]);
+      const k = U.clamp(Math.floor((0.1 + dif * 0.95) * pal.length + U.bayer(x + cx, y + cy) * 0.9), 0, pal.length - 1);
+      g.fillStyle = pal[k];
+      g.fillRect(cx + x, cy + y, 1, 1);
+    }
+  };
+  X.stationBase = (lvl, turret) => {
+    const key = lvl + '|' + (turret ? 1 : 0);
+    if (stCache[key]) return stCache[key];
+    const W = 76, H = 64, cx = X.ST_CX, cy = X.ST_CY;
+    const c = U.canvas(W, H), g = c.getContext('2d');
+    const P = (col, x, y, w = 1, h = 1) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    const panel = (x, y, w, h) => {
+      P('#070b22', x - 1, y - 1, w + 2, h + 2);
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        const grid = i % 4 === 3 || j % 3 === 2;
+        let col = grid ? '#16245e' : j % 3 === 0 ? '#3a7ae0' : '#2459b0';
+        if (!grid && (i + j * 2) % 11 === 0) col = '#8ac4ff';
+        P(col, x + i, y + j);
+      }
+    };
+    const truss = (x, y, w) => { P(HULL[1], x, y, w, 2); for (let i = 0; i < w; i += 3) P(HULL[3], x + i, y); };
+    const vtruss = (x, y, h) => { P(HULL[1], x, y, 2, h); for (let i = 0; i < h; i += 3) P(HULL[3], x, y + i); };
+
+    // módulos extras (progressão visual da estação)
+    if (lvl >= 1) { vtruss(cx + 10, cy - 20, 10); truss(cx + 4, cy - 20, 10); panel(cx + 14, cy - 27, 16, 8); }
+    if (lvl >= 3) { vtruss(cx - 14, cy + 13, 8); panel(cx - 34, cy + 17, 20, 7); truss(cx - 14, cy + 20, 6); }
+    if (lvl >= 4) {
+      truss(cx - 22, cy - 22, 18);
+      for (let x = 0; x < 14; x++) {
+        const cols = [HULL[4], HULL[3], HULL[3], HULL[2], HULL[1], HULL[0]];
+        for (let y = 0; y < 6; y++) P(cols[y], cx - 30 + x, cy - 25 + y);
+        if (x % 3 === 1) P('#ffe9a0', cx - 30 + x, cy - 23);
+      }
+      P(HULL[0], cx - 31, cy - 25, 1, 6); P(HULL[0], cx - 16, cy - 25, 1, 6);
+    }
+    // painéis solares principais
+    truss(6, cy - 1, 20);
+    panel(3, cy - 14, 20, 10);
+    panel(3, cy + 4, 20, 10);
+    // espinha central
+    const scol = [HULL[1], HULL[4], HULL[3], HULL[3], HULL[2], HULL[2], HULL[1], HULL[0]];
+    for (let y = 6; y < 55; y++) for (let i = 0; i < 8; i++) P(y % 6 === 0 && i > 0 && i < 7 ? HULL[1] : scol[i], cx - 4 + i, y);
+    // antena
+    P(HULL[3], cx, 0, 1, 6); P(HULL[2], cx - 3, 3, 7, 1); P(HULL[4], cx - 2, 2, 1, 1); P(HULL[4], cx + 2, 2, 1, 1);
+    // braço de doca
+    for (let y = 0; y < 7; y++) P([HULL[4], HULL[3], HULL[3], HULL[2], HULL[2], HULL[1], HULL[0]][y], cx + 8, cy - 3 + y, 11, 1);
+    for (let x = cx + 9; x < cx + 19; x += 3) P(HULL[1], x, cy - 3, 1, 7);
+    // baia de atracação
+    P(HULL[0], cx + 18, cy - 9, 13, 19);
+    for (let y = 0; y < 17; y++) P(y < 2 ? HULL[4] : y < 5 ? HULL[3] : y < 12 ? HULL[2] : HULL[1], cx + 19, cy - 8 + y, 11, 1);
+    P('#04050b', cx + 24, cy - 5, 6, 11);
+    P('#0a0d1c', cx + 24, cy - 5, 6, 2);
+    for (let i = 0; i < 11; i++) P(i % 2 ? '#ffcc33' : '#1a1a1a', cx + 23, cy - 5 + i);
+    // segundo hangar
+    if (lvl >= 2) {
+      P(HULL[0], cx + 4, cy + 14, 14, 9);
+      for (let y = 0; y < 7; y++) P([HULL[4], HULL[3], HULL[2], HULL[2], HULL[1], HULL[1], HULL[0]][y], cx + 5, cy + 15 + y, 12, 1);
+      P('#04050b', cx + 12, cy + 17, 5, 4);
+      // antena parabólica
+      for (let i = 0; i < 9; i++) P(i < 4 ? HULL[4] : HULL[2], cx + 20 + i, cy + 21 - Math.round(Math.abs(i - 4) * 0.6));
+      P(HULL[3], cx + 24, cy + 15, 1, 6); P(HULL[5], cx + 24, cy + 14);
+    }
+    // núcleo esférico
+    X.sphere(g, cx, cy, 10, HULL);
+    for (let x = -10; x <= 10; x++) {
+      const yy = Math.round(Math.sqrt(Math.max(0, 1 - (x * x) / 100)) * 1.2);
+      const colA = x < -4 ? '#ffb060' : x < 3 ? '#d0601c' : '#7a2e10';
+      if (Math.abs(x) <= 9) { P(colA, cx + x, cy - 1 + yy - 1); P(x < 0 ? '#7a2e10' : '#4a1a08', cx + x, cy + yy); }
+    }
+    for (let x = -7; x <= 7; x += 3) P('#ffe9a0', cx + x, cy - 4);
+    // reator
+    P(HULL[2], cx - 6, 54, 12, 2); P(HULL[1], cx - 5, 56, 10, 2); P('#0b3a44', cx - 3, 58, 6, 2);
+    if (turret) { P(HULL[1], cx - 3, cy - 12, 7, 2); P(HULL[3], cx - 2, cy - 13, 5, 1); }
+    stCache[key] = c;
+    return c;
+  };
+  const ringDraw = (ctx, x, y, t, back) => {
+    const a = 23, b = 6;
+    for (let i = 0; i < 170; i++) {
+      const th = (i / 170) * 6.2832, s = Math.sin(th), co = Math.cos(th);
+      if (back ? s >= 0 : s < 0) continue;
+      const px = Math.round(x + co * a), py = Math.round(y + s * b);
+      ctx.fillStyle = back ? (co < 0 ? '#3a4266' : '#262c48') : co < 0 ? '#a9b3d8' : '#5f6a96';
+      ctx.fillRect(px, py, 1, 2);
+      if (!back) {
+        ctx.fillStyle = co < 0 ? '#e6eaff' : '#8a96c0';
+        ctx.fillRect(px, py, 1, 1);
+        const seg = ((th / 6.2832) * 14 + t * 0.5) % 1;
+        if (seg < 0.1) { ctx.fillStyle = '#ffe9a0'; ctx.fillRect(px, py + 1, 1, 1); }
+      }
+    }
+  };
+  X.drawStation = (ctx, x, y, t, o) => {
+    const cx = X.ST_CX, cy = X.ST_CY, ox = x - cx, oy = y - cy;
+    ringDraw(ctx, x, y + 2, t, true);
+    ctx.drawImage(X.stationBase(o.lvl, o.turret), ox, oy);
+    ringDraw(ctx, x, y + 2, t, false);
+    // janelas piscando no núcleo
+    for (let k = 0; k < 5; k++) {
+      const on = Math.sin(t * 1.7 + k * 2.1) > -0.3;
+      ctx.fillStyle = on ? '#ffe9a0' : '#5a4a2a';
+      ctx.fillRect(x - 7 + k * 3, y - 4, 1, 1);
+    }
+    // luzes da doca em sequência
+    for (let i = 0; i < 5; i++) {
+      const on = Math.floor(t * 6) % 5 === i;
+      ctx.fillStyle = on ? '#ffe066' : '#4a3a12';
+      ctx.fillRect(x + 30, y - 4 + i * 2, 1, 1);
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    // farol da antena
+    if ((t * 1.2) % 1 < 0.35) { ctx.drawImage(X.glow('#ff3a3a', 4), x - 4, oy - 4); ctx.fillStyle = '#ffd0d0'; ctx.fillRect(x, oy, 1, 1); }
+    // reator pulsante
+    const pu = 0.55 + 0.45 * Math.sin(t * 4);
+    ctx.globalAlpha = pu;
+    ctx.drawImage(X.glow('#3ef0ff', 6), x - 6, oy + 54);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#d8ffff'; ctx.fillRect(x - 1, oy + 59, 2, 1);
+    for (let i = 0; i < 3; i++) {
+      const fy = oy + 61 + ((t * 20 + i * 4) % 8);
+      ctx.globalAlpha = 1 - ((t * 20 + i * 4) % 8) / 8;
+      ctx.fillStyle = '#3ef0ff'; ctx.fillRect(x - 1 + (i % 2), Math.round(fy), 1, 1);
+    }
+    ctx.globalAlpha = 1;
+    // brilho da baia quando drones chegam
+    if (o.dockGlow > 0) { ctx.globalAlpha = Math.min(1, o.dockGlow); ctx.drawImage(X.glow('#ffd23f', 5), x + 22, y - 5); ctx.globalAlpha = 1; }
+    // fornalha ativa
+    if (o.refine) {
+      ctx.globalAlpha = 0.5 + 0.3 * Math.sin(t * 9);
+      ctx.drawImage(X.glow('#ff7a20', 4), x - 4, y + 10);
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // canhão da torreta
+    if (o.turret) {
+      const bx = x, by = y - 13;
+      ctx.fillStyle = '#a9b3d8';
+      for (let i = 1; i <= 5; i++) ctx.fillRect(Math.round(bx + Math.cos(o.tang) * i), Math.round(by + Math.sin(o.tang) * i), 1, 1);
+      if (o.muzzle > 0) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.drawImage(X.glow('#5ef2ff', 3), Math.round(bx + Math.cos(o.tang) * 6) - 3, Math.round(by + Math.sin(o.tang) * 6) - 3);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+  };
+
+  /* ---------- Drones (6 tiers) ---------- */
+  const DRONE = [
+    '....oooo...',
+    '..oobbbboo.',
+    '.obccccccbo',
+    'obcggggcbee',
+    'oabbbbbbaoo',
+    '.ooaaaaoo..',
+    '..o.o.o.o..'
+  ];
+  X.DRONE_T = [
+    { a: '#3a3f5a', b: '#6b7396', c: '#b8c0e0', g: '#5ef2ff', e: '#ff4a4a' },
+    { a: '#4a3a1a', b: '#8a7040', c: '#e0c88a', g: '#ffe066', e: '#ff9a3a' },
+    { a: '#1a3a2a', b: '#3f7a55', c: '#9ae0b0', g: '#c6ff6a', e: '#ffe14a' },
+    { a: '#1a2a4a', b: '#3a6aa8', c: '#9ac8ff', g: '#ffffff', e: '#5aff7a' },
+    { a: '#3a1a4a', b: '#7a3aa8', c: '#d8a0ff', g: '#ff9cf0', e: '#4ae0ff' },
+    { a: '#4a3a10', b: '#b08a20', c: '#fff0a0', g: '#ffffff', e: '#ff6ae0' }
+  ];
+  X.drones = X.DRONE_T.map(t => {
+    const r = U.sprite(DRONE, { o: '#07070f', a: t.a, b: t.b, c: t.c, g: t.g, e: t.e });
+    return { r, l: U.flipX(r) };
+  });
+
+  /* ---------- Ícones de interface ---------- */
+  const IP = {
+    k: '#0b0b16', w: '#ffffff', y: '#ffd23f', Y: '#c8860e', o: '#ff8a2a', r: '#ff4a4a', R: '#a01a2a',
+    g: '#7dff8a', G: '#2a9a4a', c: '#5ef2ff', C: '#1a7a98', b: '#9aa3c8', B: '#4a5274', p: '#ff6ae0', P: '#8a2a8a', v: '#b67cff', s: '#d0d8f0'
+  };
+  const ICONS = {
+    coin: ['..YYYYY..', '.YyyyyyY.', 'YyywwyyyY', 'YywyyyyyY', 'YyyyyyyyY', 'YyyyyyyoY', 'YyyyyyooY', '.YyyyooY.', '..YYYYY..'],
+    data: ['..c.c.c..', '.kkkkkkk.', 'ckBBBBBkc', '.kBccwBk.', 'ckBcccBkc', '.kBBcBBk.', 'ckBBBBBkc', '.kkkkkkk.', '..c.c.c..'],
+    shard: ['....w....', '...wpP...', '..wwpPP..', '.wwppPPP.', 'wwpppPPPP', '.wppPPPP.', '..ppPPP..', '...pPP...', '....P....'],
+    flame: ['....r....', '...rr....', '...ryr...', '..ryyr.r.', '.ryywyrr.', '.rywwyyr.', '.ryywwyr.', '..ryyyr..', '...rrr...'],
+    chart: ['.........', '......gg.', '......gg.', '...gg.gg.', '...gg.gg.', 'gg.gg.gg.', 'gg.gg.gg.', 'GGGGGGGGG', '.........'],
+    flask: ['..kkkkk..', '...ksk...', '...ksk...', '..kssck..', '.ksccccs.', 'kscccwccs', 'kccwccccs', '.sssssss.', '.........'],
+    planet: ['...ccc...', '..cwccc..', '.cccccCC.', 'yyyyyyyyy', '.ccccCCC.', '..cCCCC..', '...CCC...', '.........', '.........'],
+    star: ['....w....', '....y....', '...yyy...', 'yyyywyyyy', '.yyywyyy.', '..yyyyy..', '..yy.yy..', '.yy...yy.', '.y.....y.'],
+    trophy: ['YyyyyyyyY', 'Y.yywyy.Y', 'Y.yywyy.Y', '.Yyyyyyy.', '..YyyyY..', '...YyY...', '....Y....', '...YyY...', '..YYYYY..'],
+    gear: ['....b....', '.b.bbb.b.', '..bbbbb..', '.bbb.bbb.', 'bbb...bbb', '.bbb.bbB.', '..bbbBB..', '.b.BBB.B.', '....B....'],
+    laser: ['........r', '.......rw', '......rw.', '.....rw..', 'kkk.rw...', 'kbbkw....', 'kbbbk....', 'kkkk.....', '.........'],
+    cargo: ['.........', '.kkkkkkk.', '.kbbybbk.', '.kbbybbk.', '.kyyyyyk.', '.kbbybbk.', '.kBBYBBk.', '.kkkkkkk.', '.........'],
+    speed: ['.........', 'c...c....', '.c...c...', '..c...c..', '...c...c.', '..c...c..', '.c...c...', 'c...c....', '.........'],
+    click: ['w........', '.ww......', '.wbb.....', '..bbb....', '...bbo...', '....boo..', '.....ooo.', '......oo.', '.......o.'],
+    crit: ['...rrr...', '.rr...rr.', '.r..w..r.', 'r...w...r', 'r.wwwww.r', 'r...w...r', '.r..w..r.', '.rr...rr.', '...rrr...'],
+    field: ['.........', '..ccccc..', '.c.....c.', 'c..bbb..c', 'c.bbbbB.c', 'c..bBB..c', '.c.....c.', '..ccccc..', '.........'],
+    scanner: ['..ggggg..', '.g..g..g.', 'g...g...g', 'g...g.w.g', 'ggggwgggg', 'g.....w.g', 'g.......g', '.g.....g.', '..ggggg..'],
+    lock: ['..bbbbb..', '.b.....b.', '.b.....b.', 'BBBBBBBBB', 'ByyyyyyyB', 'ByyykyyyB', 'ByyykyyyB', 'ByyyyyyyB', 'BBBBBBBBB']
+  };
+  const INGOT = ['....44444...', '..444444443.', '.43333333322', '.33333333321', '.22222222211', '..111111111.'];
+  const urlCache = {};
+  X.icons = () => {
+    if (urlCache.done) return urlCache;
+    for (const k in ICONS) urlCache[k] = U.sprite(ICONS[k], IP, true).toDataURL();
+    urlCache.drone = U.sprite(DRONE, { o: '#07070f', a: '#3a3f5a', b: '#6b7396', c: '#b8c0e0', g: '#5ef2ff', e: '#ff4a4a' }, true).toDataURL();
+    ORES.forEach((o, i) => {
+      const art = X.makeAsteroid({ r: 4.6, rock: o.col, ore: [o.col[2], o.col[3], o.col[4], '#ffffff', '#ffffff'], density: 0.12, seed: 100 + i * 7, frames: 1 });
+      urlCache['ore' + i] = art.frames[0].toDataURL();
+      const pal = {};
+      for (let k = 0; k < 5; k++) pal[String(k)] = o.col[k];
+      urlCache['ingot' + i] = U.sprite(INGOT, pal, true).toDataURL();
+    });
+    urlCache.done = true;
+    return urlCache;
+  };
+
+  return X;
+})();
+
+'use strict';
+/* ===== Núcleo do jogo: estado, simulação, economia, renderização ===== */
+const SAVE_KEY = 'orbita-mineradora-v1';
+
+const G = {
+  W: 400, H: 240, scale: 3, t: 0, frame: 0, cv: null, ctx: null, tmp: null, tctx: null,
+  ast: [], drones: [], parts: [], picks: [], floats: [], comets: [], bolts: [], rings: [], flashes: [],
+  stars: [[], [], []], dust: [],
+  mouse: { x: -999, y: -999, in: false, down: false, hold: 0 },
+  hover: null, shake: 0, warp: null, banner: null,
+  buffs: { frenzy: 0 }, event: null, spawnT: 0, droneSeq: 0, astId: 0,
+  tang: -Math.PI / 2, muzzle: 0, refineFx: 0, dockGlow: 0,
+  timers: { comet: 70, shower: 240, boom: 130, market: 0, rate: 0, save: 0, auto: 0, check: 0, turret: 0 },
+  gain: ORES.map(() => 0), dataGain: 0, cps: 0, hist: ORES.map(() => []),
+  log: [], st: { x: 60, y: 120 }, dock: { x: 87, y: 120 }, reg: { x0: 150, x1: 380, y0: 30, y1: 210 }, pl: { x: 300, y: 70 },
+  bg: null, planet: null, vig: null, debris: [], ready: false, hiddenAt: 0, lastTs: 0
+};
+let S = null;
+
+function defaultState() {
+  return {
+    v: 1, credits: 0, runCredits: 0, lifeCredits: 0, data: 0, shards: 0,
+    ores: ORES.map(() => 0), ingots: ORES.map(() => 0), seen: ORES.map((_, i) => i < 2),
+    upg: { fleet: 0, laser: 0, cargo: 0, speed: 0, click: 0, crit: 0, field: 0, scanner: 0, refine: 0 },
+    research: {}, pupg: {}, sector: 0, maxSector: 0, runMaxSector: 0,
+    furnaces: [{ ore: -1, prog: 0, busy: false, take: 0 }],
+    prices: ORES.map(() => 1),
+    autosell: { on: true, thr: 1.0, ingots: false },
+    ach: {}, goal: 0,
+    stats: { clicks: 0, crits: 0, asteroids: 0, rich: 0, comets: 0, ingots: 0, prestiges: 0, play: 0, mined: 0, sold: 0 },
+    rates: ORES.map(() => 0), dataRate: 0,
+    settings: { sound: true, fx: 2, shake: true, scan: true },
+    buyMode: 1, dataLvl: 0, last: Date.now()
+  };
+}
+
+/* ---------- Valores derivados ---------- */
+const D = {
+  drones: () => 1 + S.upg.fleet,
+  maxDrones: () => 15 + (S.research.hangar1 ? 10 : 0) + (S.research.hangar2 ? 15 : 0),
+  pdrill: () => Math.pow(1.5, S.pupg.drill || 0),
+  dpsAt: l => 2 * Math.pow(1.25, l) * (S.research.reson ? 1.5 : 1) * (S.research.singular ? 3 : 1) * D.pdrill(),
+  dps: () => D.dpsAt(S.upg.laser) * (G.buffs.frenzy > 0 ? 3 : 1),
+  cargoAt: l => 6 * Math.pow(1.3, l),
+  cargo: () => D.cargoAt(S.upg.cargo),
+  speedAt: l => 42 * (1 + 0.12 * l),
+  speed: () => D.speedAt(S.upg.speed) * (G.buffs.frenzy > 0 ? 1.5 : 1),
+  clickAt: l => 1.5 * Math.pow(1.35, l) * D.pdrill() + 0.05 * D.dpsAt(S.upg.laser) * D.drones(),
+  click: () => D.clickAt(S.upg.click) * (G.buffs.frenzy > 0 ? 3 : 1),
+  critAt: l => Math.min(0.9, 0.03 * l + (S.research.aim ? 0.05 : 0)),
+  crit: () => D.critAt(S.upg.crit),
+  maxAst: () => 5 + S.upg.field,
+  richAt: l => (0.02 + 0.015 * l) * (S.research.spectro ? 2 : 1),
+  rich: () => D.richAt(S.upg.scanner),
+  refineTimeAt: l => 8 / ((1 + 0.2 * l) * (S.research.plasma ? 2 : 1)),
+  refineTime: () => D.refineTimeAt(S.upg.refine),
+  batchAt: l => 10 * Math.pow(2, Math.floor(l / 3)),
+  batch: () => D.batchAt(S.upg.refine),
+  furnaces: () => 1 + ['furn2', 'furn3', 'furn4', 'furn5'].filter(k => S.research[k]).length,
+  achMult: () => 1 + 0.03 * Object.keys(S.ach).length,
+  valueMult: () => (1 + 0.1 * S.shards) * D.achMult() * (S.research.futures ? 1.15 : 1) * Math.pow(1.25, S.pupg.reson || 0) * (1 + 0.1 * S.dataLvl),
+  ingotMult: () => 14 * (S.research.metal ? 1.5 : 1),
+  dataMult: () => (S.research.navai ? 2 : 1),
+  hpu: s => Math.pow(3, s),
+  offEff: () => (S.research.telemetry ? 1 : 0.5),
+  offCap: () => (8 + 4 * (S.pupg.chrono || 0)) * 3600,
+  sectorCost: s => SECTORS[s].cost * (S.research.warp ? 0.7 : 1),
+  turretInt: () => 1.2 / (S.research.turret2 ? 2.5 : 1),
+  tier: () => Math.min(5, Math.floor(S.upg.laser / 12)),
+  stLevel: () => { const d = D.drones(); return (d >= 5) + (d >= 12) + (d >= 20) + (d >= 30); },
+  pcap: () => [260, 650, 1300][S.settings.fx]
+};
+const priceOf = i => ORES[i].val * S.prices[i] * D.valueMult();
+const ingotPrice = i => ORES[i].val * D.ingotMult() * S.prices[i] * D.valueMult();
+const ingotName = i => ORES[i].ingot;
+const usedByFurnace = i => S.furnaces.slice(0, D.furnaces()).some(f => f.ore === i);
+// reserva mantida para alimentar as fornalhas (4 lotes por fornalha usando o minério)
+const reserveOf = i => S.furnaces.slice(0, D.furnaces()).filter(f => f.ore === i).length * D.batch() * 4;
+
+/* ---------- Economia ---------- */
+function earn(v) { S.credits += v; S.runCredits += v; S.lifeCredits += v; }
+function addOre(i, u, auto) {
+  if (!(u > 0)) return;
+  S.ores[i] += u; S.stats.mined += u;
+  if (auto) G.gain[i] += u;
+  if (!S.seen[i]) { S.seen[i] = true; log(`Novo minério descoberto: ${ORES[i].name}!`, ORES[i].col[3]); }
+}
+function sellOre(i, quiet, keep) {
+  const a = S.ores[i] - (keep || 0);
+  if (a < 0.01) return 0;
+  const v = a * priceOf(i);
+  S.ores[i] -= a; earn(v); S.stats.sold++;
+  if (!quiet) SFX.play('coin');
+  return v;
+}
+function sellIngot(i, quiet) {
+  const a = S.ingots[i];
+  if (a < 1) return 0;
+  const v = a * ingotPrice(i);
+  S.ingots[i] = 0; earn(v); S.stats.sold++;
+  if (!quiet) SFX.play('coin');
+  return v;
+}
+function sellAll() {
+  let v = 0;
+  for (let i = 0; i < ORES.length; i++) v += sellOre(i, true, reserveOf(i));
+  if (v > 0) { SFX.play('coin'); toastMoney(v); }
+  return v;
+}
+function toastMoney(v) { floatText(G.dock.x, G.dock.y - 14, '+' + U.fmt(v) + ' CR', '#ffd23f', true); }
+
+function upCost(u, lvl, n) { const r = u.mult; return u.base * Math.pow(r, lvl) * (Math.pow(r, n) - 1) / (r - 1); }
+function upMax(u) { return u.max ? u.max() : Infinity; }
+function buyCount(u) {
+  const lvl = S.upg[u.id], room = upMax(u) - lvl;
+  if (room <= 0) return 0;
+  if (S.buyMode === 'max') {
+    const r = u.mult, c0 = u.base * Math.pow(r, lvl);
+    let n = Math.floor(Math.log((S.credits * (r - 1)) / c0 + 1) / Math.log(r));
+    if (!isFinite(n) || n < 1) n = 1;
+    return Math.min(n, room);
+  }
+  return Math.min(S.buyMode, room);
+}
+function buyUpgrade(id) {
+  const u = UPGRADES.find(x => x.id === id);
+  const n = buyCount(u);
+  if (n <= 0) return;
+  const cost = upCost(u, S.upg[id], n);
+  if (S.credits < cost) { SFX.play('deny'); return; }
+  S.credits -= cost;
+  S.upg[id] += n;
+  SFX.play('buy');
+  if (id === 'fleet') syncDrones();
+}
+function doResearch(id) {
+  const r = RESEARCH.find(x => x.id === id);
+  if (!r || S.research[id] || S.data < r.cost || !(r.req || []).every(q => S.research[q])) { SFX.play('deny'); return; }
+  S.data -= r.cost;
+  S.research[id] = 1;
+  SFX.play('unlock');
+  log(`Pesquisa concluída: ${r.name}`, '#5ef2ff');
+  if (id === 'turret') G.stDirty = true;
+}
+const calibCost = l => 300 * Math.pow(1.45, l);
+function doCalib() {
+  const c = calibCost(S.dataLvl);
+  if (S.data < c) { SFX.play('deny'); return; }
+  S.data -= c; S.dataLvl++;
+  SFX.play('buy');
+}
+function unlockSector(s) {
+  if (s !== S.maxSector + 1 || s >= SECTORS.length) return;
+  const cost = D.sectorCost(s), ri = s - 1, req = SECTORS[s].req;
+  if (S.credits < cost || S.ingots[ri] < req) { SFX.play('deny'); return; }
+  S.credits -= cost;
+  S.ingots[ri] -= req;
+  S.maxSector = s;
+  S.runMaxSector = Math.max(S.runMaxSector, s);
+  SFX.play('unlock');
+  log(`Rota aberta para ${SECTORS[s].name}!`, '#7dff8a');
+  travel(s);
+}
+function travel(s) {
+  if (s === S.sector || G.warp || s > S.maxSector) return;
+  G.warp = { t: 0, to: s, switched: false };
+  SFX.play('warp');
+}
+function shardGain() { return Math.floor(Math.sqrt(S.runCredits / 1e6)); }
+function canPrestige() { return S.runMaxSector >= 3 && shardGain() >= 1; }
+function doPrestige() {
+  if (!canPrestige()) return;
+  const gain = shardGain();
+  const old = S, ns = defaultState();
+  ns.shards = old.shards + gain;
+  ns.pupg = old.pupg; ns.ach = old.ach; ns.stats = old.stats; ns.settings = old.settings; ns.goal = old.goal;
+  ns.lifeCredits = old.lifeCredits; ns.seen = old.seen; ns.autosell = old.autosell; ns.buyMode = old.buyMode;
+  ns.stats.prestiges++;
+  if (old.pupg.memory) ns.research = old.research;
+  S = ns;
+  S.upg.fleet = Math.min(2 * (old.pupg.legacy || 0), D.maxDrones() - 1);
+  S.maxSector = Math.min(old.maxSector, old.pupg.shortcut || 0);
+  S.runMaxSector = S.maxSector;
+  S.sector = 0;
+  G.ast = []; G.drones = []; G.parts = []; G.picks = []; G.bolts = []; G.comets = [];
+  G.buffs.frenzy = 0; G.event = null; G.warp = null;
+  setupSector();
+  syncDrones();
+  G.flash = 1.4;
+  G.banner = { title: 'SALTO QUANTICO', sub: `+${U.fmt(gain)} FRAGMENTOS ESTELARES`, t: 0, life: 4, col: '#ff6ae0' };
+  SFX.play('prestige');
+  log(`Salto Quântico! +${U.fmt(gain)} fragmentos.`, '#ff6ae0');
+  save();
+}
+function buyPrestige(id) {
+  const p = PRESTIGE.find(x => x.id === id), l = S.pupg[id] || 0;
+  if (l >= p.max) return;
+  const c = p.cost(l);
+  if (S.shards < c) { SFX.play('deny'); return; }
+  S.shards -= c;
+  S.pupg[id] = l + 1;
+  SFX.play('unlock');
+}
+
+/* ---------- Registro, textos e efeitos ---------- */
+function log(text, col) {
+  G.log.push({ text, col: col || '#d9d6ff', t: performance.now() });
+  if (G.log.length > 6) G.log.shift();
+}
+function floatText(x, y, text, col, big) {
+  G.floats.push({ x, y, text, col, t: 0, life: big ? 1.5 : 1.0, big: !!big });
+  if (G.floats.length > 40) G.floats.shift();
+}
+function part(x, y, vx, vy, life, col, o) {
+  if (G.parts.length >= D.pcap()) return;
+  o = o || {};
+  G.parts.push({ x, y, vx, vy, life, max: life, col, sz: o.sz || 1, add: !!o.add, drag: o.drag == null ? 1.6 : o.drag, grav: o.grav || 0, spr: o.spr || null, fi: Math.random() * 8, fs: o.fs || 0 });
+}
+function sparks(x, y, cols, n, spd, add) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.2832, s = U.rand(spd * 0.3, spd);
+    part(x, y, Math.cos(a) * s, Math.sin(a) * s, U.rand(0.2, 0.6), U.pick(cols), { add });
+  }
+}
+function pickup(x, y, col) { if (G.picks.length < 120) G.picks.push({ x, y, vx: U.rand(-40, 40), vy: U.rand(-40, 40), col, t: 0 }); }
+
+/* ---------- Layout e setor ---------- */
+function layout() {
+  const W = G.W, H = G.H;
+  G.st = { x: Math.round(Math.max(40, W * 0.13)), y: Math.round(H * 0.55) };
+  G.dock = { x: G.st.x + 27, y: G.st.y };
+  G.reg = { x0: Math.round(Math.max(W * 0.36, G.st.x + 64)), x1: W - 10, y0: 30, y1: H - 22 };
+  G.pl = { x: Math.round(W * 0.68), y: Math.round(H * 0.3) };
+}
+function planetSize() {
+  const base = Math.round(Math.min(G.H * 0.5, G.W * 0.32, 150));
+  return SECTORS[S.sector].planet.type === 'star' ? Math.round(base * 0.45) : base;
+}
+function setupSector() {
+  const sec = SECTORS[S.sector];
+  G.bg = GFX.makeNebula(G.W, G.H, sec.neb, 1000 + S.sector * 17);
+  G.planet = new GFX.Planet(sec.planet, planetSize(), 500 + S.sector * 31);
+  G.planet.render(0);
+  G.debris = [0, 1, 2, 3].map(k => GFX.makeAsteroid({ r: 1.8 + (k % 2) * 1.2, rock: sec.rock, ore: sec.rock, density: 0, seed: 50 + k + S.sector * 10, frames: 8 }));
+  makeStars();
+}
+function makeStars() {
+  const area = G.W * G.H;
+  const counts = [area / 650, area / 1500, area / 4000];
+  const cols = ['#4a4e7a', '#9aa2e0', '#ffffff'];
+  G.stars = counts.map((n, k) => Array.from({ length: Math.floor(n) }, () => ({
+    x: Math.random() * G.W, y: Math.random() * G.H, ph: Math.random() * 6.28,
+    c: k === 2 && Math.random() < 0.35 ? U.pick(['#ffd9a0', '#a0d8ff', '#ffb0e0']) : cols[k]
+  })));
+  G.dust = Array.from({ length: Math.floor(area / 3000) }, () => ({ x: Math.random() * G.W, y: Math.random() * G.H, s: U.rand(14, 30) }));
+}
+function resize() {
+  const vp = document.getElementById('viewport');
+  const r = vp.getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const scale = U.clamp(Math.round(r.width / 420), 2, 5);
+  const W = Math.ceil(r.width / scale), H = Math.ceil(r.height / scale);
+  const changed = W !== G.W || H !== G.H || !G.bg;
+  G.cv.width = W; G.cv.height = H;
+  G.cv.style.width = W * scale + 'px'; G.cv.style.height = H * scale + 'px';
+  G.W = W; G.H = H; G.scale = scale;
+  G.ctx.imageSmoothingEnabled = false;
+  layout();
+  if (changed && S) {
+    setupSector();
+    G.vig = GFX.makeVignette(W, H);
+    for (const a of G.ast) { a.x = U.clamp(a.x, G.reg.x0 + a.R, G.reg.x1 - a.R); a.y = U.clamp(a.y, G.reg.y0 + a.R, G.reg.y1 - a.R); }
+  }
+}
+
+/* ---------- Asteroides ---------- */
+function makeAst(o) {
+  o = o || {};
+  const sec = SECTORS[S.sector], r = G.reg;
+  const ore = o.ore != null ? o.ore : U.wpick(sec.ores, sec.w);
+  const sz = o.sz || U.wpick(['s', 'm', 'l'], [0.45, 0.37, 0.18]);
+  const R = Math.round(sz === 's' ? U.rand(5, 7) : sz === 'm' ? U.rand(9, 11) : U.rand(13, 16));
+  const rich = o.rich != null ? o.rich : Math.random() < D.rich() + (o.shower ? 0.2 : 0);
+  const oc = ORES[ore];
+  const art = GFX.makeAsteroid({ r: R, rock: sec.rock, ore: oc.col, density: rich ? 0.2 : 0.08, glow: !!oc.glow, seed: U.randi(1, 1e9), frames: sz === 's' ? 16 : 24 });
+  const base = { s: 8, m: 20, l: 45 }[sz];
+  const hp = base * D.hpu(S.sector);
+  let x, y, vx, vy;
+  const tx = U.rand(r.x0 + R, r.x1 - R), ty = U.rand(r.y0 + R, r.y1 - R);
+  if (o.shower) { x = U.rand(r.x0 + 40, G.W + 40); y = -R - 4; vx = -U.rand(15, 35); vy = U.rand(45, 70); }
+  else { x = G.W + R + U.rand(2, 20); y = ty; vx = -U.rand(24, 36); vy = U.rand(-2, 2); }
+  return {
+    id: G.astId++, x, y, vx, vy, R, sz, ore, rich, units: base * (rich ? 5 : 1), hp, maxHp: hp, art,
+    fa: U.rand(0, 24), fs: U.rand(2, 6) * (Math.random() < 0.5 ? -1 : 1), flash: 0, hitT: 0,
+    alive: true, entering: true, targ: 0, shower: !!o.shower, tx, ty
+  };
+}
+function inRegion(a) { const r = G.reg; return a.x >= r.x0 + a.R && a.x <= r.x1 - a.R && a.y >= r.y0 + a.R && a.y <= r.y1 - a.R; }
+function damageAsteroid(a, dmg, byClick) {
+  if (!a.alive || dmg <= 0) return 0;
+  const d = Math.min(dmg, a.hp);
+  const units = (d / a.maxHp) * a.units;
+  a.hp -= d;
+  a.hitT = 2;
+  if (byClick) a.flash = 0.1;
+  if (a.hp <= a.maxHp * 1e-9) destroyAsteroid(a);
+  return units;
+}
+function destroyAsteroid(a) {
+  a.alive = false;
+  S.stats.asteroids++;
+  if (a.rich) S.stats.rich++;
+  const sf = { s: 1, m: 2, l: 3 }[a.sz];
+  const dg = (1 + S.sector) * sf * (a.rich ? 3 : 1) * D.dataMult();
+  S.data += dg; G.dataGain += dg;
+  if (S.research.collector) addOre(a.ore, a.units * 0.3, true);
+  const sec = SECTORS[S.sector], rc = sec.rock, oc = ORES[a.ore].col;
+  const n = 8 + sf * 9;
+  for (let i = 0; i < n; i++) {
+    const an = Math.random() * 6.2832, sp = U.rand(10, 46) * (0.7 + sf * 0.25);
+    part(a.x + Math.cos(an) * a.R * 0.5, a.y + Math.sin(an) * a.R * 0.5, Math.cos(an) * sp, Math.sin(an) * sp, U.rand(0.5, 1.3), Math.random() < 0.35 ? oc[3] : rc[U.randi(1, 4)], { sz: Math.random() < 0.3 ? 2 : 1 });
+  }
+  for (let i = 0; i < 6 + sf * 5; i++) {
+    const an = Math.random() * 6.2832, sp = U.rand(8, 30);
+    part(a.x, a.y, Math.cos(an) * sp, Math.sin(an) * sp, U.rand(0.25, 0.6), U.pick(['#fff3b0', '#ffb040', '#ff6a20']), { add: true, sz: 2, drag: 3 });
+  }
+  for (let i = 0; i < sf * 2 + 1; i++) {
+    const an = Math.random() * 6.2832, sp = U.rand(8, 22);
+    part(a.x, a.y, Math.cos(an) * sp, Math.sin(an) * sp, U.rand(1.4, 2.6), null, { spr: U.pick(G.debris), fs: U.rand(-12, 12), drag: 0.6 });
+  }
+  G.rings.push({ x: a.x, y: a.y, r: a.R * 0.5, max: a.R * 2.4, t: 0, col: oc[4] });
+  G.flashes.push({ x: a.x, y: a.y, r: Math.min(10, Math.round(a.R * 0.8)), t: 0, life: 0.25, col: a.rich ? '#ffe9a0' : '#ffb060' });
+  for (let i = 0; i < 1 + sf; i++) pickup(a.x, a.y, oc[3]);
+  floatText(a.x, a.y - a.R - 6, `+${U.fmt(dg)} DADOS`, '#5ef2ff');
+  if (a.rich) floatText(a.x, a.y - a.R - 13, 'RICO!', '#ffd23f');
+  G.shake = Math.max(G.shake, sf * 0.8);
+  SFX.play('boom', 0.12);
+}
+function astAt(x, y) {
+  let best = null, bd = 1e9;
+  for (const a of G.ast) {
+    if (!a.alive) continue;
+    const d = Math.hypot(a.x - x, a.y - y);
+    if (d < a.R + 3 && d < bd) { bd = d; best = a; }
+  }
+  return best;
+}
+
+/* ---------- Drones ---------- */
+function newDrone() {
+  const id = G.droneSeq++;
+  return { id, x: G.dock.x, y: G.dock.y, vx: 0, vy: 0, state: 'dock', t: 0.2 + (id % 7) * 0.25, target: null, cargo: { ore: -1, amt: 0 }, face: 1, spread: (((id * 0.6180339) % 1) - 0.5) * 2.4 };
+}
+function syncDrones() {
+  const n = D.drones();
+  while (G.drones.length < n) G.drones.push(newDrone());
+  while (G.drones.length > n) { const d = G.drones.pop(); releaseTarget(d); }
+}
+function releaseTarget(d) { if (d.target) { d.target.targ = Math.max(0, d.target.targ - 1); d.target = null; } }
+function setTarget(d, a) { releaseTarget(d); d.target = a; a.targ++; }
+function pickTarget(d) {
+  let best = null, bs = 1e9;
+  for (const a of G.ast) {
+    if (!a.alive || a.entering) continue;
+    if (d.cargo.amt > 0 && a.ore !== d.cargo.ore) continue;
+    const sc = Math.hypot(a.x - d.x, a.y - d.y) + a.targ * 32 - (a.rich ? 70 : 0) + Math.random() * 25;
+    if (sc < bs) { bs = sc; best = a; }
+  }
+  return best;
+}
+function moveTo(d, tx, ty, spd, dt) {
+  const dx = tx - d.x, dy = ty - d.y, dist = Math.hypot(dx, dy);
+  const s = spd * Math.min(1, dist / 16 + 0.12);
+  const dvx = dist > 0.01 ? (dx / dist) * s : 0, dvy = dist > 0.01 ? (dy / dist) * s : 0;
+  const k = Math.min(1, dt * 5);
+  d.vx += (dvx - d.vx) * k; d.vy += (dvy - d.vy) * k;
+  d.x += d.vx * dt; d.y += d.vy * dt;
+  if (Math.abs(d.vx) > 4) d.face = d.vx > 0 ? 1 : -1;
+  return dist;
+}
+function minePoint(d, a) {
+  const ang = Math.atan2(G.st.y - a.y, G.st.x - a.x) + d.spread, r = a.R + 7;
+  return [a.x + Math.cos(ang) * r, a.y + Math.sin(ang) * r];
+}
+function updateDrone(d, dt) {
+  const spd = D.speed();
+  if (d.state === 'dock') {
+    d.x = G.dock.x; d.y = G.dock.y; d.vx = 0; d.vy = 0;
+    d.t -= dt;
+    if (d.t > 0 || G.warp) return;
+    const a = pickTarget(d);
+    if (a) { setTarget(d, a); d.state = 'out'; d.vx = spd * 0.5; d.face = 1; } else d.t = 0.4;
+    return;
+  }
+  if (d.state === 'out' || d.state === 'mine') {
+    const a = d.target;
+    if (!a || !a.alive) {
+      releaseTarget(d);
+      if (d.cargo.amt < D.cargo() * 0.7) {
+        const n = pickTarget(d);
+        if (n) { setTarget(d, n); d.state = 'out'; return; }
+      }
+      d.state = 'back';
+      return;
+    }
+    const mp = minePoint(d, a);
+    const dist = moveTo(d, mp[0], mp[1], spd, dt);
+    if (d.state === 'out') { if (dist < 3) d.state = 'mine'; return; }
+    d.face = a.x > d.x ? 1 : -1;
+    if (dist > 9) { d.state = 'out'; return; }
+    const cap = D.cargo(), room = cap - d.cargo.amt;
+    const dmg = Math.min(D.dps() * dt, room * (a.maxHp / a.units));
+    const u = damageAsteroid(a, dmg, false);
+    d.cargo.ore = a.ore;
+    d.cargo.amt += u;
+    if (Math.random() < dt * 22) {
+      const ang = Math.atan2(d.y - a.y, d.x - a.x);
+      const ix = a.x + Math.cos(ang) * a.R * 0.8, iy = a.y + Math.sin(ang) * a.R * 0.8;
+      part(ix, iy, Math.cos(ang + U.rand(-1, 1)) * U.rand(10, 35), Math.sin(ang + U.rand(-1, 1)) * U.rand(10, 35), U.rand(0.2, 0.5), U.pick([ORES[a.ore].col[3], ORES[a.ore].col[4], '#ffffff']), { add: true });
+    }
+    if (d.cargo.amt >= cap * 0.999) { releaseTarget(d); d.state = 'back'; }
+    return;
+  }
+  if (d.state === 'back') {
+    const dist = moveTo(d, G.dock.x, G.dock.y, spd, dt);
+    if (dist < 3) {
+      if (d.cargo.amt > 0) {
+        addOre(d.cargo.ore, d.cargo.amt, true);
+        G.dockGlow = 0.6;
+        sparks(G.dock.x, G.dock.y, [ORES[d.cargo.ore].col[4], '#ffffff'], 3, 18, true);
+      }
+      d.cargo.amt = 0; d.cargo.ore = -1;
+      d.state = 'dock'; d.t = 0.35;
+    }
+  }
+}
+
+/* ---------- Cliques, cometas, torreta ---------- */
+function clickAt(x, y, auto) {
+  if (G.warp) return;
+  for (const c of G.comets) if (Math.hypot(c.x - x, c.y - y) < 12) { catchComet(c); return; }
+  const a = astAt(x, y);
+  if (!a) return;
+  let dmg = D.click();
+  const crit = Math.random() < D.crit();
+  if (crit) { dmg *= 5; S.stats.crits++; G.shake = Math.max(G.shake, 2.5); }
+  S.stats.clicks++;
+  const u = damageAsteroid(a, dmg, true);
+  addOre(a.ore, u, false);
+  const oc = ORES[a.ore].col;
+  sparks(x, y, [oc[3], oc[4], '#ffffff'], crit ? 16 : 6, crit ? 70 : 45, true);
+  for (let i = 0; i < Math.min(3, 1 + Math.floor(u / 4)); i++) pickup(x, y, oc[3]);
+  floatText(x, y - 8, '+' + U.fmt(u), oc[4], crit);
+  if (crit) floatText(x, y - 20, 'CRITICO!', '#ff6a6a', false);
+  if (!auto || crit) SFX.play(crit ? 'crit' : 'hit');
+}
+function spawnComet() {
+  const fromLeft = Math.random() < 0.5;
+  G.comets.push({ x: fromLeft ? -10 : G.W + 10, y: U.rand(G.H * 0.12, G.H * 0.5), vx: (fromLeft ? 1 : -1) * U.rand(34, 50), vy: U.rand(3, 12), t: 0 });
+  log('Um cometa dourado cruza o setor! Clique nele.', '#ffd23f');
+  SFX.play('comet');
+}
+function catchComet(c) {
+  c.dead = true;
+  S.stats.comets++;
+  const gm = S.pupg.golden ? 2 : 1;
+  const r = Math.random();
+  let msg;
+  if (r < 0.45) {
+    const v = Math.max(60, G.cps * 90, (D.click() / D.hpu(S.sector)) * 60 * priceOf(SECTORS[S.sector].ores[0])) * gm;
+    earn(v); msg = `+${U.fmt(v)} CR`;
+    log(`Cometa capturado: +${U.fmt(v)} créditos`, '#ffd23f');
+  } else if (r < 0.8) {
+    G.buffs.frenzy = Math.max(G.buffs.frenzy, 30 * gm);
+    msg = 'FRENESI!';
+    log(`Frenesi: drones e cliques ×3 por ${30 * gm}s`, '#ffd23f');
+  } else {
+    const v = Math.max(10, S.dataRate * 150, (1 + S.sector) * 12) * gm;
+    S.data += v; msg = `+${U.fmt(v)} DADOS`;
+    log(`Cometa capturado: +${U.fmt(v)} dados`, '#5ef2ff');
+  }
+  floatText(c.x, c.y - 10, msg, '#ffd23f', true);
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * 6.2832, s = U.rand(10, 80);
+    part(c.x, c.y, Math.cos(a) * s, Math.sin(a) * s, U.rand(0.4, 1.2), U.pick(['#fff3b0', '#ffd23f', '#ffffff', '#ff9a3a']), { add: true, sz: Math.random() < 0.3 ? 2 : 1 });
+  }
+  G.rings.push({ x: c.x, y: c.y, r: 2, max: 26, t: 0, col: '#ffd23f' });
+  G.shake = Math.max(G.shake, 2);
+  SFX.play('ach');
+}
+function updateTurret(dt) {
+  if (!S.research.turret) return;
+  G.timers.turret -= dt;
+  G.muzzle = Math.max(0, G.muzzle - dt);
+  if (G.timers.turret > 0) return;
+  const cands = G.ast.filter(a => a.alive && !a.entering);
+  if (!cands.length) { G.timers.turret = 0.3; return; }
+  G.timers.turret = D.turretInt();
+  const a = U.pick(cands);
+  const sx = G.st.x, sy = G.st.y - 13;
+  G.tang = Math.atan2(a.y - sy, a.x - sx);
+  G.muzzle = 0.08;
+  G.bolts.push({ x: sx + Math.cos(G.tang) * 6, y: sy + Math.sin(G.tang) * 6, a, vx: 0, vy: 0 });
+  SFX.play('zap', 0.1);
+}
+
+/* ---------- Eventos e mercado ---------- */
+function updateEvents(dt) {
+  const T = G.timers;
+  T.comet -= dt;
+  if (T.comet <= 0) { spawnComet(); T.comet = U.rand(90, 200) / (S.research.comet ? 2 : 1); }
+  T.shower -= dt;
+  if (T.shower <= 0 && !G.event) {
+    G.event = { type: 'shower', t: 25, name: 'Chuva de Meteoros' };
+    G.banner = { title: 'CHUVA DE METEOROS', sub: 'ASTEROIDES EXTRAS E MAIS RICOS', t: 0, life: 3, col: '#ff9a3a' };
+    log('Chuva de meteoros! Asteroides extras por 25s.', '#ff9a3a');
+    T.shower = U.rand(300, 480);
+  }
+  T.boom -= dt;
+  if (T.boom <= 0) {
+    const seen = ORES.map((o, i) => i).filter(i => S.seen[i]);
+    const i = U.pick(seen);
+    S.prices[i] = U.rand(2.2, 3);
+    log(`Alta no mercado: ${ORES[i].name} a ${Math.round(S.prices[i] * 100)}%!`, '#7dff8a');
+    T.boom = U.rand(120, 240);
+  }
+  if (G.event) { G.event.t -= dt; if (G.event.t <= 0) G.event = null; }
+  if (G.buffs.frenzy > 0) G.buffs.frenzy -= dt;
+}
+function marketTick() {
+  for (let i = 0; i < ORES.length; i++) {
+    let m = S.prices[i];
+    m += (1 - m) * 0.035 + (Math.random() - 0.5) * 0.12;
+    S.prices[i] = U.clamp(m, 0.35, 3.2);
+    G.hist[i].push(S.prices[i]);
+    if (G.hist[i].length > 48) G.hist[i].shift();
+  }
+}
+function autoSell() {
+  if (!S.research.autosell || !S.autosell.on) return;
+  let v = 0;
+  for (let i = 0; i < ORES.length; i++) {
+    if (S.prices[i] < S.autosell.thr) continue;
+    v += sellOre(i, true, reserveOf(i));
+    if (S.autosell.ingots) v += sellIngot(i, true);
+  }
+  if (v > 0) { floatText(G.dock.x, G.dock.y - 14, '+' + U.fmt(v), '#ffd23f'); SFX.play('coin', 0.5); }
+}
+function refineTick(dt) {
+  const n = D.furnaces(), T = D.refineTime(), B = D.batch();
+  while (S.furnaces.length < n) S.furnaces.push({ ore: -1, prog: 0, busy: false, take: 0 });
+  let any = false;
+  for (let k = 0; k < n; k++) {
+    const f = S.furnaces[k];
+    if (f.ore < 0) continue;
+    if (!f.busy) {
+      const take = Math.min(B, Math.floor(S.ores[f.ore] / 10) * 10);
+      if (take < 10) continue;
+      S.ores[f.ore] -= take; f.take = take; f.busy = true; f.prog = 0;
+    }
+    any = true;
+    f.prog += dt / T;
+    if (f.prog >= 1) {
+      const out = f.take / 10;
+      f.prog = 0; f.busy = false;
+      S.ingots[f.ore] += out; S.stats.ingots += out;
+    }
+  }
+  G.refineFx = any;
+}
+function setFurnace(k, ore) {
+  const f = S.furnaces[k];
+  if (!f) return;
+  if (f.busy && f.ore >= 0 && f.ore !== ore) { S.ores[f.ore] += f.take; f.busy = false; f.prog = 0; f.take = 0; }
+  f.ore = ore;
+}
+
+/* ---------- Conquistas e missões ---------- */
+function checkProgress() {
+  for (const a of ACH) {
+    if (!S.ach[a.id] && a.c(S)) {
+      S.ach[a.id] = 1;
+      UI.toast('Conquista desbloqueada', `${a.n} · +3% no valor dos minérios`, 'trophy', 'gold');
+      SFX.play('ach');
+    }
+  }
+  const g = GOALS[S.goal];
+  if (g && g.c(S)) {
+    earn(g.r);
+    S.goal++;
+    UI.toast('Missão concluída', `${g.t} · +${U.fmt(g.r)} créditos`, 'star', 'cyan');
+    SFX.play('unlock');
+  }
+}
+
+/* ---------- Atualização principal ---------- */
+function update(dt) {
+  G.t += dt;
+  S.stats.play += dt;
+  if (G.warp) updateWarp(dt);
+  updateEvents(dt);
+
+  // asteroides: surgimento
+  const shower = G.event && G.event.type === 'shower';
+  const maxA = D.maxAst() + (shower ? 6 : 0);
+  G.spawnT -= dt;
+  if (!G.warp && G.ast.length < maxA && G.spawnT <= 0) {
+    G.ast.push(makeAst(shower && Math.random() < 0.8 ? { shower: true, sz: Math.random() < 0.7 ? 's' : 'm' } : {}));
+    G.spawnT = shower ? 0.45 : G.ast.length < 3 ? 0.3 : U.rand(0.8, 2);
+  }
+  // asteroides: movimento
+  const r = G.reg;
+  for (const a of G.ast) {
+    a.fa += dt * a.fs;
+    if (a.flash > 0) a.flash -= dt;
+    if (a.hitT > 0) a.hitT -= dt;
+    a.x += a.vx * dt; a.y += a.vy * dt;
+    if (a.entering) {
+      if (a.shower && Math.random() < dt * 30) part(a.x + U.rand(-2, 2), a.y - a.R * 0.6, U.rand(-4, 4), -U.rand(10, 25), U.rand(0.2, 0.5), U.pick(['#ffb040', '#ff6a20', '#fff3b0']), { add: true, sz: 2 });
+      if (inRegion(a) && a.x <= a.tx + 2 && (!a.shower || a.y >= a.ty)) { a.entering = false; a.vx = U.rand(-3, 3); a.vy = U.rand(-3, 3); }
+      if (a.x < -40 || a.y > G.H + 40) a.alive = false;
+      continue;
+    }
+    if (a.x < r.x0 + a.R) a.vx = Math.abs(a.vx) + 0.5;
+    if (a.x > r.x1 - a.R) a.vx = -Math.abs(a.vx) - 0.5;
+    if (a.y < r.y0 + a.R) a.vy = Math.abs(a.vy) + 0.5;
+    if (a.y > r.y1 - a.R) a.vy = -Math.abs(a.vy) - 0.5;
+    a.vx = U.clamp(a.vx, -6, 6); a.vy = U.clamp(a.vy, -6, 6);
+    if ((a.rich || ORES[a.ore].glow) && Math.random() < dt * (a.rich ? 4 : 2)) {
+      const an = Math.random() * 6.2832, rr = Math.random() * a.R;
+      part(a.x + Math.cos(an) * rr, a.y + Math.sin(an) * rr, 0, -4, 0.5, a.rich ? '#fff3b0' : ORES[a.ore].col[4], { add: true, drag: 0 });
+    }
+  }
+  for (let i = 0; i < G.ast.length; i++) {
+    const a = G.ast[i];
+    if (a.entering) continue;
+    for (let j = i + 1; j < G.ast.length; j++) {
+      const b = G.ast[j];
+      if (b.entering) continue;
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = a.R + b.R + 4;
+      if (d < min) {
+        const p = ((min - d) / d) * Math.min(1, dt * 2);
+        a.x -= dx * p * 0.5; a.y -= dy * p * 0.5; b.x += dx * p * 0.5; b.y += dy * p * 0.5;
+      }
+    }
+  }
+  G.ast = G.ast.filter(a => a.alive);
+
+  // drones
+  syncDrones();
+  for (const d of G.drones) updateDrone(d, dt);
+  G.dockGlow = Math.max(0, G.dockGlow - dt * 2);
+
+  // torreta e projéteis
+  updateTurret(dt);
+  for (const b of G.bolts) {
+    const a = b.a;
+    if (!a.alive) { b.dead = true; continue; }
+    const dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy);
+    if (d < a.R) {
+      b.dead = true;
+      const u = damageAsteroid(a, D.click() * 0.6, false);
+      addOre(a.ore, u, true);
+      sparks(b.x, b.y, ['#5ef2ff', '#ffffff', ORES[a.ore].col[4]], 5, 40, true);
+      continue;
+    }
+    b.vx = (dx / d) * 260; b.vy = (dy / d) * 260;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+  }
+  G.bolts = G.bolts.filter(b => !b.dead);
+
+  // cometas
+  for (const c of G.comets) {
+    c.t += dt; c.x += c.vx * dt; c.y += c.vy * dt;
+    if (Math.random() < dt * 60) part(c.x + U.rand(-1, 1), c.y + U.rand(-1, 1), -c.vx * 0.15 + U.rand(-4, 4), -c.vy * 0.15 + U.rand(-4, 4), U.rand(0.5, 1.1), U.pick(['#ffd23f', '#fff3b0', '#ff9a3a', '#ffffff']), { add: true, drag: 0.8 });
+    if (c.x < -30 || c.x > G.W + 30 || c.y > G.H + 30) c.dead = true;
+  }
+  G.comets = G.comets.filter(c => !c.dead);
+
+  // partículas
+  for (const p of G.parts) {
+    p.life -= dt;
+    const dr = Math.max(0, 1 - p.drag * dt);
+    p.vx *= dr; p.vy *= dr; p.vy += p.grav * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.spr) p.fi += p.fs * dt;
+  }
+  G.parts = G.parts.filter(p => p.life > 0);
+  for (const p of G.picks) {
+    p.t += dt;
+    const dx = G.dock.x - p.x, dy = G.dock.y - p.y, d = Math.hypot(dx, dy) || 1;
+    const acc = 180 + p.t * 500;
+    p.vx += (dx / d) * acc * dt; p.vy += (dy / d) * acc * dt;
+    const dr = Math.max(0, 1 - dt * 2.5);
+    p.vx *= dr; p.vy *= dr;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    if (d < 5 || p.t > 4) { p.dead = true; G.dockGlow = Math.max(G.dockGlow, 0.4); }
+  }
+  G.picks = G.picks.filter(p => !p.dead);
+  for (const f of G.floats) f.t += dt;
+  G.floats = G.floats.filter(f => f.t < f.life);
+  for (const w of G.rings) w.t += dt;
+  G.rings = G.rings.filter(w => w.t < 0.45);
+  for (const f of G.flashes) f.t += dt;
+  G.flashes = G.flashes.filter(f => f.t < f.life);
+  if (G.banner) { G.banner.t += dt; if (G.banner.t > G.banner.life) G.banner = null; }
+  G.shake = Math.max(0, G.shake - dt * 9);
+  if (G.flash > 0) G.flash -= dt;
+
+  // mouse: segurar para minerar (5 golpes/s)
+  if (G.mouse.down) {
+    G.mouse.hold += dt;
+    if (G.mouse.hold >= 0.2) { G.mouse.hold -= 0.2; clickAt(G.mouse.x, G.mouse.y, true); }
+  }
+  G.hover = G.mouse.in ? astAt(G.mouse.x, G.mouse.y) : null;
+
+  // economia
+  refineTick(dt);
+  const T = G.timers;
+  T.market += dt; if (T.market >= 2) { T.market = 0; marketTick(); }
+  T.auto += dt; if (T.auto >= 1) { T.auto = 0; autoSell(); }
+  T.rate += dt;
+  if (T.rate >= 1) {
+    for (let i = 0; i < ORES.length; i++) { S.rates[i] = S.rates[i] * 0.85 + (G.gain[i] / T.rate) * 0.15; G.gain[i] = 0; }
+    S.dataRate = S.dataRate * 0.85 + (G.dataGain / T.rate) * 0.15;
+    G.dataGain = 0;
+    let c = 0;
+    for (let i = 0; i < ORES.length; i++) c += S.rates[i] * priceOf(i);
+    G.cps = c;
+    T.rate = 0;
+  }
+  T.check += dt; if (T.check >= 1) { T.check = 0; checkProgress(); }
+  T.save += dt; if (T.save >= 15) { T.save = 0; save(); }
+}
+function updateWarp(dt) {
+  const w = G.warp;
+  w.t += dt;
+  if (!w.switched && w.t >= 0.9) {
+    w.switched = true;
+    S.sector = w.to;
+    for (const d of G.drones) {
+      if (d.cargo.amt > 0) addOre(d.cargo.ore, d.cargo.amt, true);
+      d.cargo.amt = 0; d.cargo.ore = -1; d.target = null; d.state = 'dock'; d.t = 0.5 + Math.random();
+    }
+    G.ast = []; G.parts = []; G.picks = []; G.bolts = []; G.spawnT = 0.3;
+    for (const o of SECTORS[S.sector].ores) S.seen[o] = S.seen[o] || o === SECTORS[S.sector].ores[0];
+    setupSector();
+    const sec = SECTORS[S.sector];
+    G.banner = { title: sec.name.toUpperCase(), sub: `SETOR ${S.sector + 1} · DUREZA ×${U.fmt(D.hpu(S.sector))}`, t: 0, life: 3.5, col: '#ffffff' };
+  }
+  if (w.t >= 1.8) G.warp = null;
+}
+
+/* ---------- Renderização ---------- */
+function pline(c, x0, y0, x1, y1) {
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy, n = 0;
+  while (n++ < 800) {
+    c.fillRect(x0, y0, 1, 1);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+function pcircle(c, x, y, r) {
+  const n = Math.max(10, Math.floor(r * 6.5));
+  for (let i = 0; i < n; i++) { const a = (i / n) * 6.2832; c.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 1, 1); }
+}
+const STAR_SPD = [1.2, 3.5, 8];
+function render() {
+  const c = G.ctx, W = G.W, H = G.H, t = G.t;
+  c.globalCompositeOperation = 'source-over';
+  c.globalAlpha = 1;
+  c.drawImage(G.bg, 0, 0);
+
+  // estrelas em paralaxe
+  for (let k = 0; k < 3; k++) {
+    const sp = STAR_SPD[k] * (G.warp ? 1 + warpK() * 40 : 1);
+    for (const s of G.stars[k]) {
+      const x = (((s.x - t * sp) % W) + W) % W;
+      const tw = Math.sin(t * (1.5 + k) + s.ph);
+      if (k === 0 && tw < -0.4) continue;
+      c.fillStyle = s.c;
+      c.fillRect(x | 0, s.y | 0, 1, 1);
+      if (k === 2 && tw > 0.9) { c.globalAlpha = 0.45; c.fillRect((x | 0) - 1, s.y | 0, 3, 1); c.fillRect(x | 0, (s.y | 0) - 1, 1, 3); c.globalAlpha = 1; }
+    }
+  }
+
+  let sx = 0, sy = 0;
+  if (G.shake > 0.3 && S.settings.shake) { sx = Math.round(U.rand(-G.shake, G.shake)); sy = Math.round(U.rand(-G.shake, G.shake)); }
+  c.save();
+  c.translate(sx, sy);
+
+  // planeta / estrela
+  if (G.frame % 2 === 0) G.planet.render(t);
+  if (SECTORS[S.sector].planet.type === 'star') {
+    c.globalCompositeOperation = 'lighter';
+    const ang = t * 0.6, len = Math.max(W, H);
+    for (let k = 0; k < 2; k++) {
+      const a = ang + k * Math.PI;
+      c.globalAlpha = 0.25;
+      c.fillStyle = '#6a9cff';
+      for (let i = 6; i < len; i += 1) { const w = 1 + Math.floor(i / 60); c.fillRect(Math.round(G.pl.x + Math.cos(a) * i), Math.round(G.pl.y + Math.sin(a) * i * 0.35), w, w); }
+    }
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+  }
+  G.planet.drawTo(c, G.pl.x, G.pl.y);
+
+  // poeira distante
+  c.fillStyle = 'rgba(180,190,255,0.25)';
+  for (const d of G.dust) { const x = (((d.x - t * d.s) % W) + W) % W; c.fillRect(x | 0, d.y | 0, 2, 1); }
+
+  // cometas (cabeça)
+  c.globalCompositeOperation = 'lighter';
+  for (const k of G.comets) {
+    c.drawImage(GFX.glow('#ffd23f', 7), Math.round(k.x) - 7, Math.round(k.y) - 7);
+    c.drawImage(GFX.glow('#fff3b0', 3), Math.round(k.x) - 3, Math.round(k.y) - 3);
+  }
+  c.globalCompositeOperation = 'source-over';
+  for (const k of G.comets) { c.fillStyle = '#ffffff'; c.fillRect(Math.round(k.x) - 1, Math.round(k.y) - 1, 2, 2); }
+
+  // asteroides
+  for (const a of G.ast) {
+    const fr = a.art.frames, n = fr.length;
+    const f = fr[((Math.floor(a.fa) % n) + n) % n];
+    const dx = Math.round(a.x - a.art.S / 2), dy = Math.round(a.y - a.art.S / 2);
+    c.drawImage(f, dx, dy);
+    if (a.flash > 0) {
+      const S2 = a.art.S;
+      G.tctx.clearRect(0, 0, S2, S2);
+      G.tctx.globalCompositeOperation = 'source-over';
+      G.tctx.drawImage(f, 0, 0);
+      G.tctx.globalCompositeOperation = 'source-atop';
+      G.tctx.fillStyle = 'rgba(255,255,255,0.8)';
+      G.tctx.fillRect(0, 0, S2, S2);
+      c.drawImage(G.tmp, 0, 0, S2, S2, dx, dy, S2, S2);
+    }
+  }
+
+  // estação
+  GFX.drawStation(c, G.st.x, G.st.y, t, { lvl: D.stLevel(), turret: !!S.research.turret, tang: G.tang, muzzle: G.muzzle, refine: G.refineFx, dockGlow: G.dockGlow });
+
+  // lasers
+  const tier = D.tier(), dt = GFX.DRONE_T[tier];
+  const lcol = G.buffs.frenzy > 0 ? '#ffd23f' : dt.e;
+  c.globalCompositeOperation = 'lighter';
+  for (const d of G.drones) {
+    if (d.state !== 'mine' || !d.target || !d.target.alive) continue;
+    const a = d.target;
+    const nx = d.x + d.face * 6, ny = d.y;
+    const ang = Math.atan2(ny - a.y, nx - a.x);
+    const ex = a.x + Math.cos(ang) * a.R * 0.7, ey = a.y + Math.sin(ang) * a.R * 0.7;
+    c.fillStyle = lcol;
+    c.globalAlpha = 0.3;
+    pline(c, nx, ny - 1, ex, ey - 1);
+    pline(c, nx, ny + 1, ex, ey + 1);
+    c.globalAlpha = 1;
+    pline(c, nx, ny, ex, ey);
+    if ((G.frame + d.id) % 3 === 0) { c.fillStyle = '#ffffff'; pline(c, nx, ny, ex, ey); }
+    c.drawImage(GFX.glow(lcol, 4), Math.round(ex) - 4, Math.round(ey) - 4);
+  }
+  // projéteis da torreta
+  c.fillStyle = '#5ef2ff';
+  for (const b of G.bolts) {
+    const l = Math.hypot(b.vx, b.vy) || 1;
+    pline(c, b.x, b.y, b.x - (b.vx / l) * 4, b.y - (b.vy / l) * 4);
+    c.drawImage(GFX.glow('#5ef2ff', 2), Math.round(b.x) - 2, Math.round(b.y) - 2);
+  }
+  c.globalAlpha = 1;
+  c.globalCompositeOperation = 'source-over';
+
+  // drones
+  const spr = GFX.drones[tier];
+  for (const d of G.drones) {
+    if (d.state === 'dock') continue;
+    const bob = d.state === 'mine' ? Math.round(Math.sin(t * 6 + d.id) * 0.6) : 0;
+    const x = Math.round(d.x) - 5, y = Math.round(d.y) - 3 + bob;
+    const sp = Math.hypot(d.vx, d.vy);
+    if (sp > 6) {
+      const fl = 1 + ((G.frame + d.id) % 3);
+      const ex = d.face > 0 ? x - fl : x + 11;
+      c.fillStyle = '#ff6a20'; c.fillRect(ex, y + 3, fl, 1);
+      c.fillStyle = '#fff3b0'; c.fillRect(d.face > 0 ? x - 1 : x + 11, y + 3, 1, 1);
+      if (Math.random() < 0.3) part(d.face > 0 ? x - 1 : x + 12, y + 3, -d.vx * 0.2, U.rand(-3, 3), 0.3, '#ff9a3a', { add: true, drag: 3 });
+    }
+    c.drawImage(d.face > 0 ? spr.r : spr.l, x, y);
+    if (d.cargo.amt > 0) {
+      const oc = ORES[d.cargo.ore].col;
+      const full = d.cargo.amt / D.cargo();
+      c.fillStyle = oc[3]; c.fillRect(x + 3, y + 7, Math.max(1, Math.round(full * 5)), 1);
+    }
+  }
+
+  // partículas
+  for (const p of G.parts) {
+    if (p.spr) {
+      const fr = p.spr.frames, n = fr.length, f = fr[((Math.floor(p.fi) % n) + n) % n];
+      c.globalAlpha = Math.min(1, p.life / (p.max * 0.4));
+      c.drawImage(f, Math.round(p.x - p.spr.S / 2), Math.round(p.y - p.spr.S / 2));
+    }
+  }
+  c.globalAlpha = 1;
+  for (const add of [false, true]) {
+    c.globalCompositeOperation = add ? 'lighter' : 'source-over';
+    for (const p of G.parts) {
+      if (p.spr || p.add !== add) continue;
+      c.globalAlpha = Math.min(1, p.life / (p.max * 0.5));
+      c.fillStyle = p.col;
+      c.fillRect(Math.round(p.x), Math.round(p.y), p.sz, p.sz);
+    }
+  }
+  c.globalAlpha = 1;
+  // lampejos de explosão
+  for (const f of G.flashes) {
+    c.globalAlpha = 1 - f.t / f.life;
+    c.drawImage(GFX.glow(f.col, f.r), Math.round(f.x) - f.r, Math.round(f.y) - f.r);
+  }
+  c.globalAlpha = 1;
+  c.globalCompositeOperation = 'source-over';
+  // ondas de choque
+  for (const w of G.rings) {
+    const k = w.t / 0.45;
+    c.globalAlpha = 1 - k;
+    c.fillStyle = w.col;
+    pcircle(c, w.x, w.y, U.lerp(w.r, w.max, Math.sqrt(k)));
+  }
+  c.globalAlpha = 1;
+  // coleta de minério voando até a doca
+  for (const p of G.picks) {
+    c.fillStyle = '#05050c'; c.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 4, 4);
+    c.fillStyle = p.col; c.fillRect(Math.round(p.x), Math.round(p.y), 2, 2);
+    c.fillStyle = '#ffffff'; c.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+  }
+
+  // mira sobre asteroide
+  const h = G.hover;
+  if (h && h.alive) {
+    const pul = Math.round(Math.sin(t * 8) * 1.2);
+    const e = h.R + 4 + pul, x0 = Math.round(h.x - e), x1 = Math.round(h.x + e), y0 = Math.round(h.y - e), y1 = Math.round(h.y + e);
+    c.fillStyle = h.rich ? '#ffd23f' : '#ffffff';
+    c.fillRect(x0, y0, 3, 1); c.fillRect(x0, y0, 1, 3);
+    c.fillRect(x1 - 2, y0, 3, 1); c.fillRect(x1, y0, 1, 3);
+    c.fillRect(x0, y1, 3, 1); c.fillRect(x0, y1 - 2, 1, 3);
+    c.fillRect(x1 - 2, y1, 3, 1); c.fillRect(x1, y1 - 2, 1, 3);
+    const label = ORES[h.ore].name + (h.rich ? ' (RICO)' : '');
+    U.text(c, label, h.x, y0 - 8, h.rich ? '#ffd23f' : ORES[h.ore].col[4], 1, 'center');
+  }
+  // barras de vida
+  for (const a of G.ast) {
+    if (!(a === h || (a.hitT > 0 && a.hp < a.maxHp))) continue;
+    const w = Math.max(8, a.R * 2), x = Math.round(a.x - w / 2), y = Math.round(a.y + a.R + 4);
+    c.fillStyle = '#05050c'; c.fillRect(x - 1, y - 1, w + 2, 4);
+    c.fillStyle = '#2a2440'; c.fillRect(x, y, w, 2);
+    c.fillStyle = ORES[a.ore].col[3]; c.fillRect(x, y, Math.max(1, Math.round((w * a.hp) / a.maxHp)), 2);
+  }
+
+  // textos flutuantes
+  for (const f of G.floats) {
+    const k = f.t / f.life;
+    c.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
+    U.text(c, f.text, f.x, f.y - k * 14, f.col, f.big ? 2 : 1, 'center');
+  }
+  c.globalAlpha = 1;
+  c.restore();
+
+  // dobra espacial
+  if (G.warp) {
+    const k = warpK();
+    c.globalCompositeOperation = 'lighter';
+    c.fillStyle = '#c8d8ff';
+    const cx = W / 2, cy = H / 2;
+    for (const s of G.stars[2].concat(G.stars[1])) {
+      const dx = s.x - cx, dy = s.y - cy;
+      c.globalAlpha = 0.5 * k;
+      pline(c, s.x, s.y, s.x + dx * k * 0.6, s.y + dy * k * 0.6);
+    }
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+    const w = G.warp.t;
+    const fl = w < 0.9 ? U.smooth(0.55, 0.9, w) : 1 - U.smooth(0.9, 1.6, w);
+    c.fillStyle = `rgba(232,240,255,${fl})`;
+    c.fillRect(0, 0, W, H);
+  }
+  if (G.flash > 0) { c.fillStyle = `rgba(255,200,250,${Math.min(1, G.flash)})`; c.fillRect(0, 0, W, H); }
+
+  if (G.vig) c.drawImage(G.vig, 0, 0);
+
+  // faixa de anúncio
+  if (G.banner) {
+    const b = G.banner, k = b.t / b.life;
+    const a = k < 0.12 ? k / 0.12 : k > 0.8 ? (1 - k) / 0.2 : 1;
+    c.globalAlpha = a;
+    const y = Math.round(H * 0.2);
+    c.fillStyle = 'rgba(4,3,14,0.55)';
+    c.fillRect(0, y - 6, W, 30);
+    c.fillStyle = b.col; c.fillRect(0, y - 6, W, 1); c.fillRect(0, y + 23, W, 1);
+    const sc = U.textW(b.title, 2) < W - 20 ? 2 : 1;
+    U.text(c, b.title, W / 2, y, b.col, sc, 'center');
+    U.text(c, b.sub, W / 2, y + 14, '#b8b4e8', 1, 'center');
+    c.globalAlpha = 1;
+  }
+  // dica inicial
+  if (S.stats.clicks === 0 && !G.warp && G.ast.length) {
+    if (Math.floor(t * 2) % 2 === 0) U.text(c, 'CLIQUE NOS ASTEROIDES PARA MINERAR', W / 2, H - 14, '#ffd23f', 1, 'center');
+    const a = G.ast.find(x => !x.entering);
+    if (a) {
+      const bob = Math.round(Math.sin(t * 6) * 2);
+      c.fillStyle = '#ffd23f';
+      const ax = Math.round(a.x), ay = Math.round(a.y - a.R - 10 + bob);
+      c.fillRect(ax - 2, ay, 5, 1); c.fillRect(ax - 1, ay + 1, 3, 1); c.fillRect(ax, ay + 2, 1, 1);
+    }
+  }
+}
+function warpK() {
+  if (!G.warp) return 0;
+  const w = G.warp.t;
+  return w < 0.9 ? Math.pow(w / 0.9, 2) : Math.max(0, 1 - (w - 0.9) / 0.6);
+}
+
+/* ---------- Salvar / carregar / offline ---------- */
+function save() {
+  if (!S) return;
+  S.last = Date.now();
+  U.store.set(SAVE_KEY, JSON.stringify(S));
+}
+function mergeState(def, src) {
+  for (const k in src) {
+    if (!(k in def)) { def[k] = src[k]; continue; }
+    const dv = def[k], sv = src[k];
+    if (Array.isArray(dv) && Array.isArray(sv)) {
+      if (k === 'furnaces') def[k] = sv.length ? sv : dv;
+      else for (let i = 0; i < Math.min(dv.length, sv.length); i++) dv[i] = sv[i];
+    } else if (dv && typeof dv === 'object' && sv && typeof sv === 'object') mergeState(dv, sv);
+    else if (typeof sv === typeof dv) def[k] = sv;
+  }
+  return def;
+}
+function loadState(obj) {
+  const s = mergeState(defaultState(), obj);
+  for (let i = 0; i < ORES.length; i++) { if (!isFinite(s.ores[i])) s.ores[i] = 0; if (!isFinite(s.ingots[i])) s.ingots[i] = 0; }
+  if (!isFinite(s.credits)) s.credits = 0;
+  s.sector = U.clamp(s.sector | 0, 0, s.maxSector);
+  return s;
+}
+function applyOffline(sec, modal) {
+  sec = Math.min(sec, D.offCap());
+  if (sec < 15) return;
+  const eff = D.offEff(), got = [];
+  for (let i = 0; i < ORES.length; i++) {
+    const u = (S.rates[i] || 0) * sec * eff;
+    if (u > 0.01) { S.ores[i] += u; S.stats.mined += u; got.push([i, u]); }
+  }
+  const dg = (S.dataRate || 0) * sec * eff;
+  S.data += dg;
+  const T = D.refineTime(), B = D.batch(), ing = [];
+  for (let k = 0; k < D.furnaces(); k++) {
+    const f = S.furnaces[k];
+    if (!f || f.ore < 0) continue;
+    const nb = Math.min(Math.floor(sec / T), Math.floor(S.ores[f.ore] / B));
+    if (nb > 0) { S.ores[f.ore] -= nb * B; S.ingots[f.ore] += (nb * B) / 10; S.stats.ingots += (nb * B) / 10; ing.push([f.ore, (nb * B) / 10]); }
+  }
+  let cr = 0;
+  if (S.research.autosell && S.autosell.on) for (const [i] of got) cr += sellOre(i, true, reserveOf(i));
+  if (!got.length && !dg && !ing.length) return;
+  if (modal) UI.offlineModal(sec, got, dg, ing, cr, eff);
+  else UI.toast('Mineração remota', `${U.fmtTime(sec)} longe · ${got.length ? got.map(([i, u]) => `+${U.fmt(u)} ${ORES[i].name}`).join(', ') : 'sem minério'}`, 'drone', 'cyan');
+}
+function hardReset() {
+  U.store.del(SAVE_KEY);
+  S = defaultState();
+  G.ast = []; G.drones = []; G.parts = []; G.picks = []; G.comets = []; G.bolts = []; G.floats = [];
+  G.buffs.frenzy = 0; G.event = null; G.log = [];
+  setupSector(); syncDrones();
+}
+
+/* ---------- Entrada e laço ---------- */
+function toLocal(e) {
+  const r = G.cv.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) / r.width) * G.W, y: ((e.clientY - r.top) / r.height) * G.H };
+}
+function initInput() {
+  const cv = G.cv;
+  cv.addEventListener('pointerdown', e => {
+    SFX.init();
+    const p = toLocal(e);
+    G.mouse.x = p.x; G.mouse.y = p.y; G.mouse.in = true; G.mouse.down = true; G.mouse.hold = 0;
+    clickAt(p.x, p.y, false);
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ok */ }
+    e.preventDefault();
+  });
+  cv.addEventListener('pointermove', e => { const p = toLocal(e); G.mouse.x = p.x; G.mouse.y = p.y; G.mouse.in = true; });
+  const up = () => { G.mouse.down = false; };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  cv.addEventListener('pointerleave', () => { G.mouse.in = false; G.mouse.down = false; });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { G.hiddenAt = Date.now(); save(); }
+    else if (G.hiddenAt) {
+      const sec = (Date.now() - G.hiddenAt) / 1000;
+      G.hiddenAt = 0;
+      G.lastTs = performance.now();
+      applyOffline(sec, sec > 300);
+    }
+  });
+  window.addEventListener('beforeunload', save);
+  window.addEventListener('pagehide', save);
+}
+function loop(ts) {
+  const dt = Math.min(0.1, Math.max(0, (ts - (G.lastTs || ts)) / 1000));
+  G.lastTs = ts;
+  if (!document.hidden) {
+    update(dt);
+    render();
+    G.frame++;
+  }
+  requestAnimationFrame(loop);
+}
+const Game = {
+  init() {
+    const raw = U.store.get(SAVE_KEY);
+    let offline = 0;
+    if (raw) {
+      try { S = loadState(JSON.parse(raw)); offline = (Date.now() - (S.last || Date.now())) / 1000; } catch (e) { S = defaultState(); }
+    } else S = defaultState();
+    G.cv = document.getElementById('game');
+    G.ctx = G.cv.getContext('2d');
+    G.tmp = U.canvas(64, 64);
+    G.tctx = G.tmp.getContext('2d');
+    for (let i = 0; i < ORES.length; i++) for (let k = 0; k < 30; k++) G.hist[i].push(S.prices[i]);
+    resize();
+    if (!G.bg) { setupSector(); G.vig = GFX.makeVignette(G.W, G.H); }
+    syncDrones();
+    initInput();
+    let rt = 0;
+    const ro = new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(resize, 120); });
+    ro.observe(document.getElementById('viewport'));
+    G.banner = { title: SECTORS[S.sector].name.toUpperCase(), sub: `SETOR ${S.sector + 1} · ORBITA MINERADORA`, t: 0, life: 3.5, col: '#ffffff' };
+    G.pendingOffline = offline;
+  },
+  start() {
+    if (G.pendingOffline > 15) applyOffline(G.pendingOffline, true);
+    requestAnimationFrame(loop);
+  },
+  buy: buyUpgrade, sellOre, sellIngot, sellAll, research: doResearch, travel, unlock: unlockSector,
+  calib: doCalib, prestige: doPrestige, pbuy: buyPrestige, save, hardReset, shardGain, canPrestige, setFurnace,
+  load(obj) { S = loadState(obj); G.ast = []; G.drones = []; setupSector(); syncDrones(); save(); }
+};
+
+'use strict';
+/* ===== Interface: HUD, abas, inventário, toasts, modais ===== */
+const UI = { tab: 'frota', busy: false, last: '', ic: {}, thumbs: {}, invLast: '', logLast: '' };
+const $ = id => document.getElementById(id);
+const img = (k, cls = '') => `<img class="px ${cls}" src="${UI.ic[k]}" alt="">`;
+
+UI.init = () => {
+  UI.ic = GFX.icons();
+  document.querySelectorAll('[data-ico]').forEach(e => { e.innerHTML = img(e.dataset.ico); });
+  $('tabs').innerHTML = TABS.map(t => `<button class="tab" id="tab-${t.id}" data-tab="${t.id}" title="${t.name}">${img(t.icon)}<span>${t.name}</span><i class="dot"></i></button>`).join('');
+  $('tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]');
+    if (!b) return;
+    UI.tab = b.dataset.tab;
+    UI.render(true);
+    $('tabContent').scrollTop = 0;
+    SFX.play('ui');
+  });
+  const tc = $('tabContent');
+  tc.addEventListener('pointerdown', () => { UI.busy = true; });
+  window.addEventListener('pointerup', () => setTimeout(() => { UI.busy = false; }, 30));
+  tc.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (!b || b.disabled) return;
+    UI.act(b.dataset.act, b.dataset);
+  });
+  tc.addEventListener('change', e => { const t = e.target; if (t.dataset.chg) UI.change(t.dataset.chg, t); });
+  tc.addEventListener('input', e => { const t = e.target; if (t.dataset.inp) UI.change(t.dataset.inp, t); });
+  $('modal').addEventListener('click', e => {
+    if (e.target.id === 'modal') { UI.closeModal(); return; }
+    const b = e.target.closest('[data-act]');
+    if (b) UI.act(b.dataset.act, b.dataset);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') UI.closeModal(); });
+  UI.render(true);
+  UI.update();
+  setInterval(UI.update, 250);
+};
+
+UI.focusLocked = () => {
+  const a = document.activeElement;
+  return a && $('tabContent').contains(a) && (a.tagName === 'SELECT' || (a.tagName === 'INPUT' && a.type === 'range'));
+};
+UI.render = force => {
+  if (!force && (UI.busy || UI.focusLocked())) return;
+  const tc = $('tabContent');
+  const html = UI.tabs[UI.tab]();
+  if (html !== UI.last || force) {
+    const st = tc.scrollTop;
+    tc.innerHTML = html;
+    tc.scrollTop = st;
+    UI.last = html;
+  }
+  document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === UI.tab));
+};
+
+UI.update = () => {
+  if (!S) return;
+  $('credits').textContent = U.fmt(S.credits);
+  $('cps').textContent = `+${U.fmt(G.cps)}/s`;
+  $('data').textContent = U.fmt(S.data);
+  $('shards').textContent = U.fmt(S.shards);
+  $('hudShards').hidden = !(S.shards > 0 || S.stats.prestiges > 0);
+  $('sectorName').textContent = `${S.sector + 1} · ${SECTORS[S.sector].name}`;
+
+  // inventário sobre o canvas
+  let inv = '';
+  ORES.forEach((o, i) => { if (S.seen[i]) inv += `<span class="chip" title="${o.name}">${img('ore' + i)}<b>${U.fmt(S.ores[i])}</b></span>`; });
+  let ing = '';
+  ORES.forEach((o, i) => { if (S.ingots[i] >= 1) ing += `<span class="chip ing" title="${o.ingot}">${img('ingot' + i)}<b>${U.fmt(S.ingots[i])}</b></span>`; });
+  const invHtml = `<div class="inv-row">${inv}</div>${ing ? `<div class="inv-row">${ing}</div>` : ''}`;
+  if (invHtml !== UI.invLast) { $('inventory').innerHTML = invHtml; UI.invLast = invHtml; }
+
+  // missão
+  const g = GOALS[S.goal];
+  $('goal').innerHTML = g
+    ? `<small>Missão ${S.goal + 1}/${GOALS.length}</small><span>${g.t}</span><em>${img('coin')} ${U.fmt(g.r)}</em>`
+    : `<small>Missões</small><span>Todas concluídas. O cosmos é seu.</span>`;
+
+  // eventos ativos
+  const ev = [];
+  if (G.buffs.frenzy > 0) ev.push(`<span class="ev gold">Frenesi ×3 · ${Math.ceil(G.buffs.frenzy)}s</span>`);
+  if (G.event) ev.push(`<span class="ev orange">${G.event.name} · ${Math.ceil(G.event.t)}s</span>`);
+  $('eventBanner').innerHTML = ev.join('');
+
+  // registro
+  const now = performance.now();
+  const logHtml = G.log.filter(l => now - l.t < 9000).map(l => `<div style="color:${l.col};opacity:${Math.max(0.15, 1 - (now - l.t) / 9000).toFixed(2)}">${l.text}</div>`).join('');
+  if (logHtml !== UI.logLast) { $('log').innerHTML = logHtml; UI.logLast = logHtml; }
+
+  // indicadores nas abas
+  const dots = {
+    frota: UPGRADES.some(u => { const n = buyCount(u); return n > 0 && S.credits >= upCost(u, S.upg[u.id], 1); }),
+    pesquisa: S.data >= calibCost(S.dataLvl) || RESEARCH.some(r => !S.research[r.id] && S.data >= r.cost && (r.req || []).every(q => S.research[q])),
+    setores: S.maxSector + 1 < SECTORS.length && S.credits >= D.sectorCost(S.maxSector + 1) && S.ingots[S.maxSector] >= SECTORS[S.maxSector + 1].req,
+    salto: canPrestige() || PRESTIGE.some(p => (S.pupg[p.id] || 0) < p.max && S.shards >= p.cost(S.pupg[p.id] || 0)),
+    refino: S.furnaces.slice(0, D.furnaces()).some(f => f.ore < 0)
+  };
+  for (const t of TABS) { const el = $('tab-' + t.id); if (el) el.classList.toggle('alert', !!dots[t.id]); }
+
+  UI.render(false);
+};
+
+/* ---------- Abas ---------- */
+const spark = i => {
+  const h = G.hist[i];
+  if (h.length < 2) return '';
+  const w = 64, ht = 22, lo = Math.min(0.9, ...h), hi = Math.max(1.1, ...h);
+  const y = v => (ht - 2 - ((v - lo) / (hi - lo)) * (ht - 4)).toFixed(1);
+  const pts = h.map((v, k) => `${((k / (h.length - 1)) * w).toFixed(1)},${y(v)}`).join(' ');
+  const up = h[h.length - 1] >= 1;
+  return `<svg class="spark" viewBox="0 0 ${w} ${ht}" width="${w}" height="${ht}" aria-hidden="true"><line x1="0" x2="${w}" y1="${y(1)}" y2="${y(1)}" class="base"/><polyline points="${pts}" class="${up ? 'up' : 'down'}"/><circle cx="${w}" cy="${y(h[h.length - 1])}" r="2" class="${up ? 'up' : 'down'}"/></svg>`;
+};
+
+UI.tabs = {
+  frota() {
+    const md = S.buyMode;
+    let h = `<div class="stats4">
+      <div><small>Drones</small><b>${D.drones()}/${D.maxDrones()}</b></div>
+      <div><small>Dano/s por drone</small><b>${U.fmt(D.dps())}</b></div>
+      <div><small>Por clique</small><b>${U.fmt(D.click())}</b></div>
+      <div><small>Produção</small><b class="gold">${U.fmt(G.cps)}/s</b></div>
+    </div>
+    <div class="buymode"><span>Comprar</span>${[1, 10, 'max'].map(m => `<button class="btn sm ${md === m ? 'on' : ''}" data-act="mode" data-m="${m}">${m === 'max' ? 'MÁX' : '×' + m}</button>`).join('')}</div>`;
+    for (const u of UPGRADES) {
+      const lvl = S.upg[u.id], max = upMax(u), maxed = lvl >= max;
+      const n = maxed ? 0 : buyCount(u), cost = maxed ? 0 : upCost(u, lvl, n), ok = !maxed && S.credits >= cost;
+      h += `<div class="card upg ${ok ? 'ok' : ''} ${maxed ? 'maxed' : ''}">
+        <div class="icbox">${img(u.icon)}</div>
+        <div class="info"><div class="t">${u.name} <span class="lvl">Nv ${lvl}${isFinite(max) ? ' / ' + max : ''}</span></div>
+        <div class="d">${u.desc}</div>
+        <div class="e">${u.eff(lvl)}${maxed ? '' : ` <span class="arrow">▸</span> <b>${u.eff(lvl + n)}</b>`}</div></div>
+        <button class="btn buy" data-act="buy" data-id="${u.id}" ${ok ? '' : 'disabled'}>${maxed ? 'MÁX' : `<small>${n > 1 ? '×' + n : 'Comprar'}</small><span>${img('coin', 'mini')}${U.fmt(cost)}</span>`}</button>
+      </div>`;
+    }
+    return h;
+  },
+
+  refino() {
+    const n = D.furnaces(), T = D.refineTime(), B = D.batch();
+    let h = `<p class="hint">Cada fornalha funde <b>${U.fmt(B)}</b> minérios em <b>${U.fmt(B / 10)}</b> lingote(s) a cada <b>${T.toFixed(1)}s</b>. Lingotes valem <b>${D.ingotMult()}×</b> o minério bruto e abrem rotas para novos setores.</p>`;
+    for (let k = 0; k < n; k++) {
+      const f = S.furnaces[k] || { ore: -1, prog: 0, busy: false };
+      const ore = f.ore;
+      const opts = `<option value="-1">Desligada</option>` + ORES.map((o, i) => (S.seen[i] ? `<option value="${i}" ${i === ore ? 'selected' : ''}>${o.name} → ${o.ingot}</option>` : '')).join('');
+      const status = ore < 0 ? 'Escolha um minério para fundir.' : f.busy ? `Fundindo ${U.fmt(f.take)} ${ORES[ore].name}…` : `Aguardando 10+ ${ORES[ore].name} (tem ${U.fmt(S.ores[ore])})`;
+      h += `<div class="card furn ${f.busy ? 'on' : ''}">
+        <div class="icbox ${f.busy ? 'hot' : ''}">${img('flame')}</div>
+        <div class="info"><div class="t">Fornalha ${['I', 'II', 'III', 'IV', 'V'][k]}</div>
+          <select id="furn-${k}" data-chg="furn" data-k="${k}" aria-label="Minério da fornalha ${k + 1}">${opts}</select>
+          <div class="bar"><i style="width:${(f.prog * 100).toFixed(1)}%;background:${ore >= 0 ? ORES[ore].col[3] : '#444'}"></i></div>
+          <div class="d">${status}</div></div>
+        <div class="icbox">${ore >= 0 ? img('ingot' + ore) : img('lock')}</div>
+      </div>`;
+    }
+    if (n < 5) h += `<p class="hint dim">Mais fornalhas podem ser pesquisadas na aba Pesquisa.</p>`;
+    h += `<h3>Estoque de lingotes</h3><div class="grid2">`;
+    ORES.forEach((o, i) => { if (S.seen[i]) h += `<div class="chip big">${img('ingot' + i)}<span>${o.ingot}</span><b>${U.fmt(S.ingots[i])}</b></div>`; });
+    return h + '</div>';
+  },
+
+  mercado() {
+    let h = `<div class="row"><button class="btn wide" data-act="sellall">${img('coin', 'mini')} Vender todo o minério (exceto reservas)</button></div>`;
+    if (S.research.autosell) {
+      h += `<div class="card auto">
+        <label class="tog"><input id="auto-on" type="checkbox" data-chg="auto" ${S.autosell.on ? 'checked' : ''}> Venda automática</label>
+        <label class="rng" for="auto-thr">Vender quando o preço estiver em <b>${Math.round(S.autosell.thr * 100)}%</b> ou mais
+          <input id="auto-thr" type="range" min="0.4" max="2" step="0.05" value="${S.autosell.thr}" data-inp="thr"></label>
+        <label class="tog"><input id="auto-ing" type="checkbox" data-chg="autoing" ${S.autosell.ingots ? 'checked' : ''}> Incluir lingotes</label>
+        <div class="d dim">Uma reserva de 4 lotes fica guardada para cada fornalha ligada.</div></div>`;
+    } else h += `<p class="hint dim">Pesquise <b>Corretora Automática</b> para vender sem clicar.</p>`;
+    h += `<h3>Minérios <small>preço por unidade</small></h3>`;
+    ORES.forEach((o, i) => {
+      if (!S.seen[i]) return;
+      const p = priceOf(i), m = S.prices[i];
+      h += `<div class="mrow">${img('ore' + i, 'oi')}<div class="nm">${o.name}<small>${U.fmt(S.ores[i])} un.${usedByFurnace(i) ? ` · reserva ${U.fmt(reserveOf(i))}` : ''}</small></div>
+        ${spark(i)}<div class="pr"><b>${U.fmt(p)}</b><small class="${m >= 1 ? 'up' : 'down'}">${Math.round(m * 100)}%</small></div>
+        <button class="btn sm" data-act="sell" data-i="${i}" ${S.ores[i] >= 0.01 ? '' : 'disabled'}>Vender<small>${U.fmt(S.ores[i] * p)}</small></button></div>`;
+    });
+    if (S.stats.ingots > 0) {
+      h += `<h3>Lingotes</h3>`;
+      ORES.forEach((o, i) => {
+        if (!S.seen[i]) return;
+        const p = ingotPrice(i);
+        h += `<div class="mrow">${img('ingot' + i, 'oi')}<div class="nm">${o.ingot}<small>${U.fmt(S.ingots[i])} un.</small></div><div class="spacer"></div>
+          <div class="pr"><b>${U.fmt(p)}</b><small class="${S.prices[i] >= 1 ? 'up' : 'down'}">${Math.round(S.prices[i] * 100)}%</small></div>
+          <button class="btn sm" data-act="selling" data-i="${i}" ${S.ingots[i] >= 1 ? '' : 'disabled'}>Vender<small>${U.fmt(S.ingots[i] * p)}</small></button></div>`;
+      });
+    }
+    return h;
+  },
+
+  pesquisa() {
+    let h = `<p class="hint">Dados de varredura vêm da destruição de asteroides (rochas grandes, ricas e setores distantes rendem mais). Você tem <b class="cyan">${U.fmt(S.data)}</b> dados.</p>`;
+    const cc = calibCost(S.dataLvl), cok = S.data >= cc;
+    h += `<div class="card upg ${cok ? 'ok' : ''}"><div class="icbox">${img('scanner')}</div>
+      <div class="info"><div class="t">Calibração Espectral <span class="lvl">Nv ${S.dataLvl}</span></div>
+      <div class="d">Pesquisa contínua: cada nível soma +10% ao valor de todos os minérios.</div>
+      <div class="e">+${S.dataLvl * 10}% <span class="arrow">▸</span> <b>+${(S.dataLvl + 1) * 10}%</b></div></div>
+      <button class="btn buy" data-act="calib" ${cok ? '' : 'disabled'}><small>Calibrar</small><span>${img('data', 'mini')}${U.fmt(cc)}</span></button></div><div class="rgrid">`;
+    for (const r of RESEARCH) {
+      const done = !!S.research[r.id], reqOk = (r.req || []).every(q => S.research[q]), ok = !done && reqOk && S.data >= r.cost;
+      h += `<div class="card res ${done ? 'done' : ''} ${ok ? 'ok' : ''} ${!reqOk && !done ? 'locked' : ''}">
+        <div class="t">${r.name}</div><div class="d">${r.desc}</div>
+        ${done ? '<div class="tag">Concluída</div>' : !reqOk ? `<div class="tag dim">Requer ${r.req.map(q => RESEARCH.find(x => x.id === q).name).join(', ')}</div>` : `<button class="btn" data-act="res" data-id="${r.id}" ${ok ? '' : 'disabled'}>${img('data', 'mini')}${U.fmt(r.cost)}</button>`}
+      </div>`;
+    }
+    return h + '</div>';
+  },
+
+  setores() {
+    let h = '';
+    SECTORS.forEach((s, i) => {
+      const cur = S.sector === i, un = i <= S.maxSector, next = i === S.maxSector + 1, known = un || next;
+      const cost = D.sectorCost(i), ri = i - 1, req = s.req;
+      const canUnlock = next && S.credits >= cost && (ri < 0 || S.ingots[ri] >= req);
+      h += `<div class="card sec ${cur ? 'cur' : ''} ${!known ? 'locked' : ''}">
+        <img class="px planet ${known ? '' : 'unk'}" src="${UI.thumb(i)}" alt="">
+        <div class="info"><div class="t">${i + 1}. ${known ? s.name : 'Setor desconhecido'}</div>
+        <div class="d">${known ? s.desc : 'Os sensores ainda não alcançam esta região.'}</div>
+        ${known ? `<div class="ores">${s.ores.map(o => img('ore' + o)).join('')}<small>Dureza ×${U.fmt(D.hpu(i))}</small></div>` : ''}
+        ${next ? `<div class="req">Custo <b class="${S.credits >= cost ? 'g' : 'r'}">${U.fmt(cost)} cr</b>${ri >= 0 ? ` + <b class="${S.ingots[ri] >= req ? 'g' : 'r'}">${req} ${ORES[ri].ingot}</b> <small>(tem ${U.fmt(S.ingots[ri])})</small>` : ''}</div>` : ''}
+        </div>
+        ${cur ? '<span class="tag here">Aqui</span>' : un ? `<button class="btn" data-act="travel" data-i="${i}">Viajar</button>` : next ? `<button class="btn" data-act="unlock" data-i="${i}" ${canUnlock ? '' : 'disabled'}>Abrir rota</button>` : ''}
+      </div>`;
+    });
+    return h;
+  },
+
+  salto() {
+    const g = shardGain(), can = canPrestige();
+    let h = `<div class="card prest">
+      <div class="t big">Salto Quântico</div>
+      <div class="d">Dobre o espaço-tempo e recomece no Cinturão de Vesta. Créditos, minérios, lingotes, melhorias${S.pupg.memory ? '' : ', pesquisas'} e setores são perdidos. Em troca você recebe <b class="mag">Fragmentos Estelares</b>: cada fragmento guardado aumenta em 10% o valor de tudo, e eles compram tecnologias ancestrais permanentes.</div>
+      <div class="stats4">
+        <div><small>Fragmentos</small><b class="mag">${U.fmt(S.shards)}</b></div>
+        <div><small>Bônus de valor</small><b>+${U.fmt(S.shards * 10)}%</b></div>
+        <div><small>Ganho ao saltar</small><b class="mag">+${U.fmt(g)}</b></div>
+        <div><small>Créditos na jornada</small><b>${U.fmt(S.runCredits)}</b></div>
+      </div>
+      ${S.runMaxSector < 3 ? `<p class="hint r">Alcance o Campo de Hélios (setor 4) nesta jornada para liberar o salto.</p>` : g < 1 ? `<p class="hint r">Acumule ao menos 1M créditos na jornada.</p>` : ''}
+      <button class="btn wide magb" data-act="prestige" ${can ? '' : 'disabled'}>${img('shard', 'mini')} Saltar e ganhar ${U.fmt(g)} fragmentos</button>
+    </div><h3>Tecnologias ancestrais</h3>`;
+    for (const p of PRESTIGE) {
+      const l = S.pupg[p.id] || 0, maxed = l >= p.max, c = maxed ? 0 : p.cost(l), ok = !maxed && S.shards >= c;
+      h += `<div class="card upg ${ok ? 'ok' : ''} ${maxed ? 'maxed' : ''}">
+        <div class="icbox">${img('shard')}</div>
+        <div class="info"><div class="t">${p.name} <span class="lvl">Nv ${l} / ${p.max}</span></div><div class="d">${p.desc}</div></div>
+        <button class="btn buy" data-act="pbuy" data-id="${p.id}" ${ok ? '' : 'disabled'}>${maxed ? 'MÁX' : `<small>Comprar</small><span>${img('shard', 'mini')}${U.fmt(c)}</span>`}</button>
+      </div>`;
+    }
+    return h;
+  },
+
+  trofeus() {
+    const got = Object.keys(S.ach).length;
+    let h = `<p class="hint">${got} de ${ACH.length} conquistas · bônus atual <b class="gold">+${got * 3}%</b> no valor dos minérios.</p><div class="agrid">`;
+    for (const a of ACH) {
+      const ok = !!S.ach[a.id];
+      h += `<div class="ach ${ok ? 'got' : ''}">${img(ok ? 'trophy' : 'lock')}<div><b>${ok ? a.n : '???'}</b><small>${a.d}</small></div></div>`;
+    }
+    return h + '</div>';
+  },
+
+  config() {
+    const st = S.stats;
+    const fx = ['Baixos', 'Médios', 'Altos'][S.settings.fx];
+    return `<div class="card cfg">
+      <button class="btn" data-act="sound">Som: ${S.settings.sound ? 'ligado' : 'desligado'}</button>
+      <button class="btn" data-act="shake">Tremor de tela: ${S.settings.shake ? 'ligado' : 'desligado'}</button>
+      <button class="btn" data-act="fx">Efeitos: ${fx}</button>
+      <button class="btn" data-act="scan">Linhas CRT: ${S.settings.scan ? 'ligadas' : 'desligadas'}</button>
+    </div>
+    <div class="card cfg">
+      <button class="btn" data-act="save">Salvar agora</button>
+      <button class="btn" data-act="export">Exportar save</button>
+      <button class="btn" data-act="import">Importar save</button>
+      <button class="btn danger" data-act="reset">Apagar progresso</button>
+    </div>
+    <h3>Estatísticas</h3>
+    <div class="statlist">
+      <div><span>Tempo de jogo</span><b>${U.fmtTime(st.play)}</b></div>
+      <div><span>Créditos (total)</span><b>${U.fmt(S.lifeCredits)}</b></div>
+      <div><span>Minério extraído</span><b>${U.fmt(st.mined)}</b></div>
+      <div><span>Asteroides destruídos</span><b>${U.fmt(st.asteroids)}</b></div>
+      <div><span>Asteroides ricos</span><b>${U.fmt(st.rich)}</b></div>
+      <div><span>Cliques / críticos</span><b>${U.fmt(st.clicks)} / ${U.fmt(st.crits)}</b></div>
+      <div><span>Lingotes produzidos</span><b>${U.fmt(st.ingots)}</b></div>
+      <div><span>Cometas capturados</span><b>${U.fmt(st.comets)}</b></div>
+      <div><span>Saltos quânticos</span><b>${U.fmt(st.prestiges)}</b></div>
+      <div><span>Multiplicador de valor</span><b>×${D.valueMult().toFixed(2)}</b></div>
+    </div>
+    <p class="hint dim">O progresso é salvo neste navegador a cada 15 segundos. Ganhos offline: ${Math.round(D.offEff() * 100)}% por até ${Math.round(D.offCap() / 3600)}h.</p>`;
+  }
+};
+
+UI.thumb = i => {
+  if (UI.thumbs[i]) return UI.thumbs[i];
+  const def = SECTORS[i].planet;
+  const Dm = def.type === 'star' ? 22 : 40;
+  const p = new GFX.Planet(def, Dm, 500 + i * 31);
+  p.render(3);
+  const c = U.canvas(64, 64), g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  p.drawTo(g, 32, 32);
+  UI.thumbs[i] = c.toDataURL();
+  return UI.thumbs[i];
+};
+
+/* ---------- Ações ---------- */
+UI.act = (act, ds) => {
+  switch (act) {
+    case 'mode': S.buyMode = ds.m === 'max' ? 'max' : +ds.m; SFX.play('ui'); break;
+    case 'buy': Game.buy(ds.id); break;
+    case 'sell': { const v = Game.sellOre(+ds.i); if (v) toastMoney(v); break; }
+    case 'selling': { const v = Game.sellIngot(+ds.i); if (v) toastMoney(v); break; }
+    case 'sellall': Game.sellAll(); break;
+    case 'res': Game.research(ds.id); break;
+    case 'calib': Game.calib(); break;
+    case 'travel': Game.travel(+ds.i); break;
+    case 'unlock': Game.unlock(+ds.i); break;
+    case 'prestige':
+      UI.modal(`<h2>Confirmar Salto Quântico?</h2><p>Você receberá <b class="mag">${U.fmt(shardGain())} Fragmentos Estelares</b>. Créditos, minérios, lingotes, melhorias${S.pupg.memory ? '' : ', pesquisas'} e setores${S.pupg.shortcut ? ` (exceto ${S.pupg.shortcut})` : ''} voltam ao início.</p>
+        <div class="row"><button class="btn magb" data-act="prestige-yes">Saltar</button><button class="btn" data-act="close">Cancelar</button></div>`);
+      break;
+    case 'prestige-yes': UI.closeModal(); Game.prestige(); break;
+    case 'pbuy': Game.pbuy(ds.id); break;
+    case 'sound': S.settings.sound = !S.settings.sound; break;
+    case 'shake': S.settings.shake = !S.settings.shake; break;
+    case 'fx': S.settings.fx = (S.settings.fx + 1) % 3; break;
+    case 'scan': S.settings.scan = !S.settings.scan; break;
+    case 'save': Game.save(); UI.toast('Jogo salvo', 'Progresso gravado neste navegador.', 'gear', 'cyan'); break;
+    case 'export': {
+      Game.save();
+      const code = btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+      UI.modal(`<h2>Exportar save</h2><p>Copie o código abaixo e guarde em um lugar seguro.</p><textarea id="saveCode" readonly>${code}</textarea>
+        <div class="row"><button class="btn" data-act="copy">Copiar</button><button class="btn" data-act="close">Fechar</button></div>`);
+      break;
+    }
+    case 'copy': {
+      const ta = $('saveCode');
+      const done = () => UI.toast('Código copiado', 'Cole em um arquivo de texto para guardar.', 'gear', 'cyan');
+      const fallback = () => { ta.focus(); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { /* selecionado para cópia manual */ } };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(done, fallback); else fallback();
+      break;
+    }
+    case 'import':
+      UI.modal(`<h2>Importar save</h2><p>Cole um código exportado. O progresso atual será substituído.</p><textarea id="importCode" placeholder="Cole o código aqui"></textarea><p id="importErr" class="r"></p>
+        <div class="row"><button class="btn" data-act="import-yes">Importar</button><button class="btn" data-act="close">Cancelar</button></div>`);
+      break;
+    case 'import-yes':
+      try {
+        const obj = JSON.parse(decodeURIComponent(escape(atob($('importCode').value.trim()))));
+        if (!obj || typeof obj !== 'object' || !obj.upg) throw new Error('formato');
+        Game.load(obj);
+        UI.closeModal();
+        UI.toast('Save importado', 'Bem-vindo de volta, comandante.', 'star', 'cyan');
+      } catch (e) { $('importErr').textContent = 'Código inválido. Confira se copiou o texto inteiro.'; }
+      break;
+    case 'reset':
+      UI.modal(`<h2>Apagar todo o progresso?</h2><p>Isso inclui fragmentos, conquistas e estatísticas. Não há como desfazer.</p>
+        <div class="row"><button class="btn danger" data-act="reset-yes">Apagar tudo</button><button class="btn" data-act="close">Cancelar</button></div>`);
+      break;
+    case 'reset-yes': Game.hardReset(); UI.closeModal(); break;
+    case 'close': UI.closeModal(); break;
+  }
+  document.body.classList.toggle('noscan', !S.settings.scan);
+  UI.render(true);
+};
+UI.change = (kind, t) => {
+  if (kind === 'furn') { Game.setFurnace(+t.dataset.k, +t.value); t.blur(); SFX.play('ui'); }
+  else if (kind === 'auto') S.autosell.on = t.checked;
+  else if (kind === 'autoing') S.autosell.ingots = t.checked;
+  else if (kind === 'thr') { S.autosell.thr = +t.value; const b = t.parentElement.querySelector('b'); if (b) b.textContent = Math.round(S.autosell.thr * 100) + '%'; return; }
+  UI.render(true);
+};
+
+/* ---------- Toasts e modais ---------- */
+UI.toast = (title, text, icon, cls) => {
+  const el = document.createElement('div');
+  el.className = 'toast ' + (cls || '');
+  el.innerHTML = `${img(icon || 'star')}<div><b>${title}</b><small>${text}</small></div>`;
+  $('toasts').appendChild(el);
+  setTimeout(() => el.classList.add('out'), 4200);
+  setTimeout(() => el.remove(), 4800);
+  while ($('toasts').children.length > 4) $('toasts').firstChild.remove();
+};
+UI.modal = html => { $('modalBody').innerHTML = html; $('modal').hidden = false; };
+UI.closeModal = () => { $('modal').hidden = true; $('modalBody').innerHTML = ''; };
+UI.offlineModal = (sec, got, dg, ing, cr, eff) => {
+  const rows = got.map(([i, u]) => `<div class="chip big">${img('ore' + i)}<span>${ORES[i].name}</span><b>+${U.fmt(u)}</b></div>`).join('')
+    + ing.map(([i, u]) => `<div class="chip big">${img('ingot' + i)}<span>${ORES[i].ingot}</span><b>+${U.fmt(u)}</b></div>`).join('');
+  UI.modal(`<h2>Relatório da frota</h2><p>Sua frota trabalhou por <b>${U.fmtTime(sec)}</b> enquanto você esteve fora (eficiência ${Math.round(eff * 100)}%).</p>
+    <div class="grid2">${rows}${dg >= 1 ? `<div class="chip big">${img('data')}<span>Dados</span><b>+${U.fmt(dg)}</b></div>` : ''}${cr > 0 ? `<div class="chip big">${img('coin')}<span>Vendas automáticas</span><b>+${U.fmt(cr)}</b></div>` : ''}</div>
+    <div class="row"><button class="btn wide" data-act="close">Continuar minerando</button></div>`);
+};
+
+window.addEventListener('load', () => {
+  Game.init();
+  UI.init();
+  document.body.classList.toggle('noscan', !S.settings.scan);
+  Game.start();
+});
+
+</script>
+</body>
+</html>
