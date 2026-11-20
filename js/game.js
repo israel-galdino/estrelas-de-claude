@@ -781,6 +781,24 @@ function pcircle(c, x, y, r) {
   for (let i = 0; i < n; i++) { const a = (i / n) * 6.2832; c.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 1, 1); }
 }
 const STAR_SPD = [1.2, 3.5, 8];
+// Sprite do drone por tier (SHIPS 'flecha', versão do mapa), com o centro e o nariz já calculados.
+// SHIPS.make guarda o sprite no cache dele; aqui fica só um atalho por tier, sem montar chave a cada quadro.
+const droneSpr = [];
+function droneSprite(tier) {
+  let s = droneSpr[tier];
+  if (!s) {
+    const sh = SHIPS.make({ design: 'flecha', tier, faction: 'estacao', lod: 'lo' });
+    const ox = Math.round(sh.cx), oy = Math.round(sh.cy);
+    s = droneSpr[tier] = {
+      sh, ox, oy,
+      noseR: SHIPS.fx(sh, 1, sh.nose[0]) + 1 - ox, noseL: SHIPS.fx(sh, -1, sh.nose[0]) - 1 - ox, noseY: Math.round(sh.nose[1]) - oy
+    };
+  }
+  return s;
+}
+// balanço de 1px enquanto o drone minera (o laser acompanha)
+const droneBob = (d, t) => (d.state === 'mine' ? Math.round(Math.sin(t * 6 + d.id) * 0.6) : 0);
+
 function render() {
   const c = G.ctx, W = G.W, H = G.H, t = G.t;
   c.globalCompositeOperation = 'source-over';
@@ -855,14 +873,14 @@ function render() {
   // estação
   GFX.drawStation(c, G.st.x, G.st.y, t, { lvl: D.stLevel(), turret: !!S.research.turret, tang: G.tang, muzzle: G.muzzle, refine: G.refineFx, dockGlow: G.dockGlow });
 
-  // lasers
-  const tier = D.tier(), dt = GFX.DRONE_T[tier];
-  const lcol = G.buffs.frenzy > 0 ? '#ffd23f' : dt.e;
+  // lasers (saem do nariz do sprite do drone)
+  const ds = droneSprite(D.tier()), dsh = ds.sh;
+  const lcol = G.buffs.frenzy > 0 ? '#ffd23f' : dsh.laserCol;
   c.globalCompositeOperation = 'lighter';
   for (const d of G.drones) {
     if (d.state !== 'mine' || !d.target || !d.target.alive) continue;
     const a = d.target;
-    const nx = d.x + d.face * 6, ny = d.y;
+    const nx = Math.round(d.x) + (d.face > 0 ? ds.noseR : ds.noseL), ny = Math.round(d.y) + ds.noseY + droneBob(d, t);
     const ang = Math.atan2(ny - a.y, nx - a.x);
     const ex = a.x + Math.cos(ang) * a.R * 0.7, ey = a.y + Math.sin(ang) * a.R * 0.7;
     c.fillStyle = lcol;
@@ -884,25 +902,21 @@ function render() {
   c.globalAlpha = 1;
   c.globalCompositeOperation = 'source-over';
 
-  // drones
-  const spr = GFX.drones[tier];
+  // drones (SHIPS 'flecha', versão do mapa): motor aceso em voo; parado, só o brilho fraco (a partir de Efeitos médios)
   for (const d of G.drones) {
     if (d.state === 'dock') continue;
-    const bob = d.state === 'mine' ? Math.round(Math.sin(t * 6 + d.id) * 0.6) : 0;
-    const x = Math.round(d.x) - 5, y = Math.round(d.y) - 3 + bob;
-    const sp = Math.hypot(d.vx, d.vy);
-    if (sp > 6) {
-      const fl = 1 + ((G.frame + d.id) % 3);
-      const ex = d.face > 0 ? x - fl : x + 11;
-      c.fillStyle = '#ff6a20'; c.fillRect(ex, y + 3, fl, 1);
-      c.fillStyle = '#fff3b0'; c.fillRect(d.face > 0 ? x - 1 : x + 11, y + 3, 1, 1);
-      if (Math.random() < 0.3) part(d.face > 0 ? x - 1 : x + 12, y + 3, -d.vx * 0.2, U.rand(-3, 3), 0.3, '#ff9a3a', { add: true, drag: 3 });
+    const x = Math.round(d.x) - ds.ox, y = Math.round(d.y) - ds.oy + droneBob(d, t);
+    const flying = Math.hypot(d.vx, d.vy) > 6;
+    if (flying || S.settings.fx > 0) SHIPS.drawEngines(c, dsh, x, y, d.face, t + d.id * 0.37, flying ? 1 : 0);
+    if (flying && Math.random() < 0.3) {
+      const e = dsh.engines[(G.frame + d.id) % dsh.engines.length];
+      part(x + SHIPS.fx(dsh, d.face, e.x) - d.face * 2, y + ((e.y0 + e.y1) >> 1), -d.vx * 0.2, U.rand(-3, 3), 0.3, dsh.glowCol, { add: true, drag: 3 });
     }
-    c.drawImage(d.face > 0 ? spr.r : spr.l, x, y);
+    c.drawImage(d.face > 0 ? dsh.r : dsh.l, x, y);
     if (d.cargo.amt > 0) {
-      const oc = ORES[d.cargo.ore].col;
+      const oc = ORES[d.cargo.ore].col, cb = dsh.cargoBar;
       const full = d.cargo.amt / D.cargo();
-      c.fillStyle = oc[3]; c.fillRect(x + 3, y + 7, Math.max(1, Math.round(full * 5)), 1);
+      c.fillStyle = oc[3]; c.fillRect(x + cb[0], y + cb[1], Math.max(1, Math.round(full * cb[2])), 1);
     }
   }
 

@@ -11,9 +11,10 @@ Scripts globais concatenados pelo `build.js`, nesta ordem (cada arquivo só pode
 | 1 | `js/util.js` | `U`: RNG com seed (`U.mulberry`), ruído, cores, sprites a partir de strings, fonte bitmap 3×5 do canvas, `U.fmt`, `U.store` (localStorage com try/catch) |
 | 2 | `js/data.js` | Tabelas de conteúdo: `ORES`, `SECTORS`, `UPGRADES`, `RESEARCH`, `PRESTIGE`, `ACH`, `GOALS`, `TABS`, `PORTRAITS` |
 | 3 | `js/audio.js` | `SFX`: efeitos sintetizados em WebAudio |
-| 4 | `js/gfx.js` | `GFX`: arte procedural (asteroides, planetas, nebulosas, estação, drones, ícones, retratos), sempre cacheada |
-| 5 | `js/game.js` | Estado (`S`, `G`, `D`), simulação, economia, render do canvas, save/offline, `Game` (API usada pela UI) |
-| 6 | `js/ui.js` | `UI`: HUD, abas, comunicações, radar, alertas, toasts, modais |
+| 4 | `js/gfx.js` | `GFX`: arte procedural (asteroides, planetas, nebulosas, estação, ícones, retratos), sempre cacheada |
+| 5 | `js/ships.js` | `SHIPS`: catálogo de naves desenhadas à mão + motor de pintura (luz, facetas, cores por tier/facção, motores) |
+| 6 | `js/game.js` | Estado (`S`, `G`, `D`), simulação, economia, render do canvas, save/offline, `Game` (API usada pela UI) |
+| 7 | `js/ui.js` | `UI`: HUD, abas, comunicações, radar, alertas, toasts, modais |
 
 `style.css` e `body.html` são a casca da interface. **Novo arquivo em `js/` precisa entrar no array do `build.js` na posição certa.**
 
@@ -38,6 +39,18 @@ node build.js
 ```
 
 Gera `index.html` (abrir direto no navegador) e `dist/orbita.html`. Nunca edite esses dois à mão. Não há testes automatizados nem lint; depois de mudar algo, rode o build e abra `index.html` conferindo o console.
+
+## Naves (`js/ships.js`)
+
+- Poucas naves, **desenhadas à mão**, uma de cada vez (o dono do projeto prefere qualidade a variedade; nada de gerador por seed). O catálogo fica no fim do arquivo: `SHIPS.define(id, { name, cls, desc, lo, hi })`.
+- Cada nave tem **duas plantas**, desenhadas separadamente:
+  - `lo` (mapa): pequena e limpa, é a usada no jogo, para o cenário aparecer mais que as naves (drone Flecha: 17×11 px);
+  - `hi` (detalhe): umas 4× maior, com painéis, rebites, grelhas e luzes, para ver ampliada (prévia, futuro estaleiro).
+- Planta: `half` = metade de cima em strings, de fora para dentro, espelhada para baixo; `mid` = linha do eixo. A legenda dos caracteres (casco, pintura, metal, vidro, linha de painel, rebite, motor, cano, luz…) está em `KEY`; `SHIPS.define` avisa no console se uma linha tiver largura errada ou um caractere fora da legenda.
+- `SHIPS.make({ design, tier, faction, lod })` devolve `{ r, l, w, h, cx, cy, nose, engines, cargoBar, laserCol, glowCol, … }` com um canvas por orientação (a esquerda é sombreada de novo, não espelhada). Fica em cache: nunca chame `make` com chave nova por quadro. No jogo, `droneSprite(tier)` em `game.js` guarda o atalho por tier.
+- `SHIPS.drawEngines(ctx, nave, x, y, face, t, thrust)` desenha chama, brilho e luzes piscando sem alocar nada. Os drones parados só ganham o brilho fraco com Efeitos médios ou altos.
+- O sombreamento não usa `Math.random` nem trigonometria: a mesma entrada gera sempre o mesmo sprite.
+- Prévia: `tools/ships-preview.html` (fora do build; abre direto pelo `file://`), com a cena no tamanho do jogo e o catálogo com zoom.
 
 ## Desempenho
 

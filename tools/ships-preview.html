@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prévia de Naves</title>
+<meta name="description" content="Ferramenta de desenvolvimento do Órbita Mineradora: catálogo de naves desenhadas à mão (fora do build).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
+<style>
+  :root {
+    --void: #06050d; --hull: #0f0e22; --hull-2: #17153a; --hull-3: #221f52;
+    --rivet: #2f2b6a; --rivet-hi: #4a46a8; --text: #dcd8ff; --dim: #8c88c0;
+    --cyan: #5ef2ff; --gold: #ffd23f; --green: #7dff8a; --red: #ff5a6a;
+    --font-pixel: 'Silkscreen', 'Courier New', monospace;
+    --font-body: 'VT323', 'Courier New', monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--void); color: var(--text);
+    font-family: var(--font-body); font-size: 20px; line-height: 1.15;
+    -webkit-font-smoothing: none;
+  }
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .16) 0 1px, transparent 1px 3px);
+  }
+  body > header {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 8px 16px; background: linear-gradient(180deg, var(--hull-2), var(--hull));
+    border-bottom: 3px solid var(--rivet); box-shadow: 0 3px 0 #000;
+  }
+  h1 { font-family: var(--font-pixel); font-size: 18px; margin: 0; letter-spacing: 2px; color: var(--cyan); text-shadow: 2px 2px 0 #0a3a5a; }
+  body > header small { font-family: var(--font-pixel); font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+  h2 { font-family: var(--font-pixel); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); margin: 0 0 8px; font-weight: 400; }
+  h3 { font-family: var(--font-pixel); font-size: 12px; letter-spacing: 1px; margin: 0; color: var(--cyan); font-weight: 400; }
+  main { padding: 12px 16px 24px; display: grid; gap: 14px; }
+  .panel { background: var(--hull); border: 2px solid var(--rivet); box-shadow: inset 2px 2px 0 rgba(255, 255, 255, .04), 3px 3px 0 #000; padding: 10px 12px; min-width: 0; }
+
+  /* controles */
+  .ctl { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px 14px; align-items: end; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; margin-bottom: 10px; }
+  .bar label { min-width: 190px; max-width: 100%; }
+  .bar select { width: auto; max-width: 100%; }
+  .ctl label, .bar label { display: grid; gap: 3px; font-family: var(--font-pixel); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); }
+  .ctl label b { color: var(--text); font-family: var(--font-body); font-size: 18px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .row { display: flex; gap: 6px; align-items: center; }
+  select {
+    font: inherit; font-family: var(--font-body); font-size: 20px; color: var(--text);
+    background: #0a0918; border: 2px solid var(--rivet); padding: 2px 6px; min-width: 0; width: 100%;
+  }
+  input[type=range] { width: 100%; accent-color: var(--cyan); }
+  input[type=checkbox] { accent-color: var(--cyan); width: 18px; height: 18px; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* content-box: a borda fica fora do tamanho, então a ampliação é sempre um múltiplo inteiro exato */
+  canvas { display: block; box-sizing: content-box; image-rendering: pixelated; image-rendering: crisp-edges; }
+  #sceneWrap { overflow: auto; max-width: 100%; }
+  #scene { border: 2px solid var(--hull-3); }
+  canvas.v { max-width: 100%; height: auto; }
+  .note { color: var(--dim); font-size: 18px; margin: 6px 0 0; }
+
+  #cat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .card { display: grid; gap: 8px; align-content: start; background: #0a0918; border: 2px solid var(--hull-3); padding: 10px; min-width: 0; }
+  .card header { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .card header span { color: var(--dim); font-size: 18px; }
+  .big { border: 2px solid var(--hull-3); background: #08071a; justify-self: start; }
+  .strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; }
+  .strip figure { margin: 0; display: grid; justify-items: center; gap: 2px; color: var(--dim); font-size: 16px; }
+  .strip canvas { border: 2px solid var(--hull-3); background: #08071a; }
+  .lbl { font-family: var(--font-pixel); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); }
+  #stats { color: var(--dim); font-size: 18px; margin: 0; }
+
+  @media (max-width: 480px) {
+    body { font-size: 18px; }
+    main { padding: 10px 16px 20px; }
+    .ctl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>ESTALEIRO</h1>
+  <small>catálogo de naves · ferramenta de desenvolvimento (fora do build)</small>
+</header>
+<main>
+  <section class="panel" aria-labelledby="ctlT">
+    <h2 id="ctlT">Ajustes (valem para a página toda)</h2>
+    <div class="ctl">
+      <label>Tier (nível do laser) <b id="tierV"></b> <input id="tier" type="range" min="0" max="5" step="1"></label>
+      <label>Facção (cores) <select id="fac"></select></label>
+      <label>Setor (fundo da cena) <select id="sec"></select></label>
+      <label>Virada para <select id="face"><option value="1">Direita</option><option value="-1">Esquerda</option></select></label>
+      <label>Animação <span class="row"><input id="anim" type="checkbox"> <b>ligada</b></span></label>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="sceneT">
+    <h2 id="sceneT">No tamanho do jogo</h2>
+    <div class="bar">
+      <label>Zoom da cena <select id="sz"><option value="0">Automático (cabe na tela)</option><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="6">6×</option></select></label>
+    </div>
+    <div id="sceneWrap"><canvas id="scene" width="400" height="240" role="img" aria-label="Cena do jogo com os conceitos de drone minerando um asteroide"></canvas></div>
+    <p class="note">A tela do jogo tem 400×240 pixels e é ampliada em escala inteira, de 2× a 5× conforme o monitor. Aqui aparecem as versões do mapa: drones Flecha minerando (e um indo e voltando), e as outras naves do catálogo cruzando ao fundo. Com zoom grande, a cena rola para o lado.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="catT">
+    <h2 id="catT">Catálogo</h2>
+    <div class="bar">
+      <label>Zoom da versão de detalhe <select id="zoom"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="6">6×</option><option value="8">8×</option></select></label>
+      <label>Motor <select id="motor"><option value="1">Voando (chama acesa)</option><option value="0">Parado (só o brilho)</option></select></label>
+    </div>
+    <p class="note" style="margin:0 0 10px">"Voando" mostra a chama como quando o drone vai e volta da estação; "parado" mostra o motor ocioso, como quando ele está minerando.</p>
+    <div id="cat"></div>
+    <p class="note">Cada nave tem duas plantas desenhadas pixel a pixel (metade de cima, espelhada): a versão de detalhe, para ver ampliada, e a versão do mapa, pequena e limpa, que é a usada no jogo. O motor de pintura só ilumina e colore: luz de cima/esquerda, casco facetado, contraluz azulada, contorno seletivo. O tier muda pintura, cabine, laser e chama; do tier 2 em diante acendem as luzes de destaque, no 4 os realces ficam iridescentes e no 5 aparecem frisos dourados.</p>
+  </section>
+
+  <p id="stats"></p>
+</main>
+
+<script>
+  // erros aparecem na própria página (uma vez cada), para não depender do console
+  (() => {
+    const seen = new Set();
+    addEventListener('error', e => {
+      const msg = `${e.message} (${String(e.filename).split('/').pop()}:${e.lineno})`;
+      if (seen.has(msg)) return;
+      seen.add(msg);
+      const p = document.createElement('p');
+      p.style.cssText = 'margin:0;padding:8px 16px;background:#3a0a14;color:#ff9aa8;border-bottom:2px solid #ff5a6a;font-size:18px';
+      p.textContent = 'Erro: ' + msg;
+      document.body.prepend(p);
+    });
+  })();
+</script>
+<script src="../js/util.js"></script>
+<script src="../js/data.js"></script>
+<script src="../js/gfx.js"></script>
+<script src="../js/ships.js"></script>
+<script>
+'use strict';
+(() => {
+  const $ = id => document.getElementById(id);
+  const st = { sec: 0, fac: 'estacao', tier: 0, zoom: 4, face: 1, motor: 1, sz: 0, anim: true };
+  const ZOOMS = [2, 3, 4, 6, 8], SZS = [0, 1, 2, 3, 4, 6];
+
+  /* ---------- estado no endereço ---------- */
+  const readHash = () => {
+    const p = new URLSearchParams(location.hash.slice(1));
+    if (p.has('sec')) st.sec = U.clamp(+p.get('sec') | 0, 0, SECTORS.length - 1);
+    if (SHIPS.FACTIONS[p.get('fac')]) st.fac = p.get('fac');
+    if (p.has('tier')) st.tier = U.clamp(+p.get('tier') | 0, 0, 5);
+    if (ZOOMS.includes(+p.get('zoom'))) st.zoom = +p.get('zoom');
+    if (p.has('sz') && SZS.includes(+p.get('sz'))) st.sz = +p.get('sz');
+    if (p.get('face') === '-1') st.face = -1;
+    if (p.get('motor') === '0') st.motor = 0;
+    if (p.get('anim') === '0') st.anim = false;
+  };
+  const writeHash = () => {
+    history.replaceState(null, '', '#' + new URLSearchParams({ sec: st.sec, fac: st.fac, tier: st.tier, zoom: st.zoom, sz: st.sz, face: st.face, motor: st.motor, anim: st.anim ? 1 : 0 }));
+  };
+
+  /* ---------- controles ---------- */
+  SECTORS.forEach((s, i) => $('sec').add(new Option(s.name, i)));
+  SHIPS.FACTION_IDS.forEach(id => $('fac').add(new Option(SHIPS.FACTIONS[id].name, id)));
+  const syncCtl = () => {
+    $('sec').value = st.sec; $('fac').value = st.fac; $('tier').value = st.tier; $('zoom').value = st.zoom;
+    $('face').value = st.face; $('motor').value = st.motor; $('sz').value = st.sz; $('anim').checked = st.anim;
+    $('tierV').textContent = `${st.tier} (laser nível ${st.tier * 12}+)`;
+  };
+  const on = (id, fn, rb = true) => $(id).addEventListener('input', () => { fn($(id)); syncCtl(); writeHash(); if (rb) rebuild(); });
+  on('sec', e => { st.sec = +e.value; makeScene(); }, false);
+  on('fac', e => { st.fac = e.value; });
+  on('tier', e => { st.tier = +e.value; });
+  on('zoom', e => { st.zoom = +e.value; });
+  on('face', e => { st.face = +e.value; });
+  on('motor', e => { st.motor = +e.value; }, false);
+  on('sz', e => { st.sz = +e.value; fitScene(); }, false);
+  on('anim', e => { st.anim = e.checked; }, false);
+
+  /* ---------- linha de pixels (como o pline do jogo) ---------- */
+  const pline = (c, x0, y0, x1, y1) => {
+    x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let e = dx + dy;
+    for (let k = 0; k < 400; k++) {
+      c.fillRect(x0, y0, 1, 1);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * e;
+      if (e2 >= dy) { e += dy; x0 += sx; }
+      if (e2 <= dx) { e += dx; y0 += sy; }
+    }
+  };
+
+  /* ---------- cena no tamanho do jogo ---------- */
+  const SW = 400, SH = 240, scene = $('scene'), sc = scene.getContext('2d');
+  let SC = null; // fundo, planeta, asteroide e estrelas do setor atual
+  const makeScene = () => {
+    const sec = SECTORS[st.sec], rnd = U.mulberry(77 + st.sec), ore = ORES[sec.ores[1]];
+    SC = {
+      bg: GFX.makeNebula(SW, SH, sec.neb, 1000 + st.sec * 17),
+      planet: new GFX.Planet(sec.planet, sec.planet.type === 'star' ? 50 : 104, 500 + st.sec * 31),
+      rock: GFX.makeAsteroid({ r: 15, rock: sec.rock, ore: ore.col, density: 0.12, glow: !!ore.glow, seed: 4242 + st.sec, frames: 24 }),
+      stars: [0, 1, 2].map(k => Array.from({ length: [140, 60, 22][k] }, () => ({ x: rnd() * SW, y: rnd() * SH, ph: rnd() * 6.28 })))
+    };
+    SC.planet.render(0);
+  };
+  const STAR_COL = ['#4a4e7a', '#9aa2e0', '#ffffff'], STAR_SPD = [1.5, 4, 9];
+  const RX = 236, RY = 128, RR = 15; // asteroide
+  // posições de mineração em volta do asteroide: [dx, dy, face]
+  const SPOTS = [[-42, -28, 1], [44, -20, -1], [-40, 26, 1], [46, 30, -1]];
+
+  const drawScene = t => {
+    const c = sc;
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+    c.drawImage(SC.bg, 0, 0);
+    for (let k = 0; k < 3; k++) {
+      c.fillStyle = STAR_COL[k];
+      for (const s of SC.stars[k]) {
+        if (k === 0 && Math.sin(t * 1.5 + s.ph) < -0.4) continue;
+        c.fillRect((((s.x - t * STAR_SPD[k]) % SW) + SW) % SW | 0, s.y | 0, 1, 1);
+      }
+    }
+    if (Math.floor(t * 30) % 2 === 0) SC.planet.render(t);
+    SC.planet.drawTo(c, 74, 176);
+
+    const fr = SC.rock.frames, rs = SC.rock.S, nf = fr.length;
+    c.drawImage(fr[((Math.floor(t * 4) % nf) + nf) % nf], RX - (rs >> 1), RY - (rs >> 1));
+
+    // drones Flecha minerando (versão do mapa), lasers primeiro e sprites por cima, como no jogo
+    const tier = st.tier, dr = SHIPS.make({ design: 'flecha', tier, faction: st.fac });
+    const placed = SPOTS.map(([dx, dy, f], i) => {
+      const bob = Math.round(Math.sin(t * 6 + i) * 0.6), x = RX + dx - Math.round(dr.cx), y = RY + dy - Math.round(dr.cy) + bob;
+      return { x, y, f, nx: x + SHIPS.fx(dr, f, dr.nose[0]) + f, ny: y + Math.round(dr.nose[1]) };
+    });
+    c.globalCompositeOperation = 'lighter';
+    for (const p of placed) {
+      const ang = Math.atan2(p.ny - RY, p.nx - RX), ex = RX + Math.cos(ang) * RR * 0.7, ey = RY + Math.sin(ang) * RR * 0.7;
+      c.fillStyle = dr.laserCol;
+      c.globalAlpha = 0.3; pline(c, p.nx, p.ny - 1, ex, ey - 1); pline(c, p.nx, p.ny + 1, ex, ey + 1);
+      c.globalAlpha = 1; pline(c, p.nx, p.ny, ex, ey);
+      if (Math.floor(t * 60) % 3 === 0) { c.fillStyle = '#ffffff'; pline(c, p.nx, p.ny, ex, ey); }
+      c.drawImage(GFX.glow(dr.laserCol, 4), Math.round(ex) - 4, Math.round(ey) - 4);
+    }
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    placed.forEach((p, i) => { SHIPS.drawEngines(c, dr, p.x, p.y, p.f, t + i * 0.37, 0); c.drawImage(p.f > 0 ? dr.r : dr.l, p.x, p.y); });
+    // um drone indo e voltando da estação (motor aceso)
+    {
+      const per = 6, u = (t % per) / per, f = u < 0.5 ? 1 : -1, k = u < 0.5 ? u * 2 : 2 - u * 2;
+      const x = Math.round(300 - k * 70) - Math.round(dr.cx), y = 196 - Math.round(dr.cy);
+      SHIPS.drawEngines(c, dr, x, y, -f, t, 1);
+      c.drawImage(-f > 0 ? dr.r : dr.l, x, y);
+    }
+    // tráfego ao fundo: as outras naves do catálogo cruzando a tela, uma por vez
+    const others = SHIPS.DESIGN_IDS.filter(id => id !== 'flecha');
+    if (others.length) {
+      const per = 9, k = Math.floor(t / per) % others.length, u = (t % per) / per, f = k % 2 ? -1 : 1;
+      const s = SHIPS.make({ design: others[k], tier, faction: st.fac });
+      const x = Math.round(f > 0 ? -s.w + u * (SW + s.w) : SW - u * (SW + s.w)), y = 30 + k * 10;
+      SHIPS.drawEngines(c, s, x, y, f, t, 0.8);
+      c.drawImage(f > 0 ? s.r : s.l, x, y);
+    }
+  };
+  const fitScene = () => {
+    // escala inteira que cabe na largura e deixa o catálogo aparecendo embaixo
+    const avail = scene.parentElement.clientWidth - 28, zh = Math.floor((innerHeight - 200) / SH);
+    const z = st.sz || U.clamp(Math.min(Math.floor(avail / SW), zh), 1, 3);
+    scene.style.width = SW * z + 'px'; scene.style.height = SH * z + 'px';
+  };
+  addEventListener('resize', fitScene);
+
+  /* ---------- catálogo ---------- */
+  const views = []; // canvases pequenos redesenhados a cada quadro (motores animados), ampliados via CSS
+  const view = (ship, z, pad, face, label) => {
+    const w = ship.w + pad * 2, h = ship.h + pad * 2, c = U.canvas(w, h), g = c.getContext('2d');
+    c.style.width = w * z + 'px';
+    c.className = 'v';
+    c.setAttribute('role', 'img'); c.setAttribute('aria-label', label);
+    views.push({ g, ship, ox: pad, oy: pad, face, w, h });
+    return c;
+  };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const figure = (canvas, cap) => { const f = el('figure'); f.append(canvas, el('figcaption', null, cap)); return f; };
+  const rebuild = () => {
+    views.length = 0;
+    const cat = $('cat');
+    cat.textContent = '';
+    for (const id of SHIPS.DESIGN_IDS) {
+      const d = SHIPS.DESIGNS[id], hi = SHIPS.make({ design: id, tier: st.tier, faction: st.fac, lod: 'hi' });
+      const lo = SHIPS.make({ design: id, tier: st.tier, faction: st.fac });
+      const card = el('article', 'card'), hd = el('header');
+      hd.append(el('h3', null, d.name), el('span', null, `${d.cls} · detalhe ${hi.w}×${hi.h} px · mapa ${lo.w}×${lo.h} px`));
+      const big = view(hi, st.zoom, 16, st.face, `${d.name}, versão de detalhe`); // margem para a chama longa
+      big.classList.add('big');
+      const ts = el('div', 'strip'), fs = el('div', 'strip');
+      for (let t = 0; t <= 5; t++) ts.append(figure(view(SHIPS.make({ design: id, tier: t, faction: st.fac }), 3, 3, st.face, `tier ${t}`), `T${t}`));
+      for (const f of SHIPS.FACTION_IDS) fs.append(figure(view(SHIPS.make({ design: id, tier: st.tier, faction: f }), 3, 3, st.face, SHIPS.FACTIONS[f].name), SHIPS.FACTIONS[f].name));
+      card.append(hd, el('p', 'note', d.desc), el('div', 'lbl', 'Versão de detalhe'), big,
+        el('div', 'lbl', 'Versão do mapa · tiers 0–5 (3×, tamanho do jogo)'), ts, el('div', 'lbl', 'Versão do mapa · facções'), fs);
+      cat.append(card);
+    }
+    const n = SHIPS.stats.made;
+    $('stats').textContent = `${SHIPS.cacheSize()} sprites no cache · tempo médio ${(n ? SHIPS.stats.ms / n : 0).toFixed(2)} ms por nave (as duas orientações)`;
+  };
+  const drawViews = t => {
+    const thr = st.motor ? 0.8 : 0;
+    for (const v of views) {
+      v.g.clearRect(0, 0, v.w, v.h);
+      SHIPS.drawEngines(v.g, v.ship, v.ox, v.oy, v.face, t, thr);
+      v.g.drawImage(v.face > 0 ? v.ship.r : v.ship.l, v.ox, v.oy);
+    }
+  };
+
+  /* ---------- laço ---------- */
+  // o carimbo do primeiro quadro pode ser anterior a performance.now(): o passo nunca é negativo
+  let t = 0, last = performance.now();
+  const loop = now => {
+    const dt = U.clamp((now - last) / 1000, 0, 0.1); last = now;
+    if (st.anim) t += dt;
+    requestAnimationFrame(loop);
+    drawScene(t);
+    drawViews(t);
+  };
+
+  readHash(); syncCtl(); makeScene(); fitScene(); rebuild();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

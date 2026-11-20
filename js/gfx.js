@@ -1,9 +1,10 @@
 'use strict';
-/* ===== Gráficos procedurais em pixel art: asteroides, planetas, nebulosas, estação, drones, ícones ===== */
+/* ===== Gráficos procedurais em pixel art: asteroides, planetas, nebulosas, estação, ícones (naves: js/ships.js) ===== */
 const GFX = (() => {
   const X = {};
   const norm3 = v => { const m = Math.hypot(v[0], v[1], v[2]); return [v[0] / m, v[1] / m, v[2] / m]; };
   const LIGHT = norm3([-0.55, -0.62, 0.56]);
+  X.LIGHT = LIGHT; // usada também pelo gerador de naves (ships.js)
 
   /* ---------- Asteroide: rocha irregular, crateras, veios de minério, rotação no plano ---------- */
   X.makeAsteroid = function (o) {
@@ -491,28 +492,7 @@ const GFX = (() => {
     }
   };
 
-  /* ---------- Drones (6 tiers) ---------- */
-  const DRONE = [
-    '....oooo...',
-    '..oobbbboo.',
-    '.obccccccbo',
-    'obcggggcbee',
-    'oabbbbbbaoo',
-    '.ooaaaaoo..',
-    '..o.o.o.o..'
-  ];
-  X.DRONE_T = [
-    { a: '#3a3f5a', b: '#6b7396', c: '#b8c0e0', g: '#5ef2ff', e: '#ff4a4a' },
-    { a: '#4a3a1a', b: '#8a7040', c: '#e0c88a', g: '#ffe066', e: '#ff9a3a' },
-    { a: '#1a3a2a', b: '#3f7a55', c: '#9ae0b0', g: '#c6ff6a', e: '#ffe14a' },
-    { a: '#1a2a4a', b: '#3a6aa8', c: '#9ac8ff', g: '#ffffff', e: '#5aff7a' },
-    { a: '#3a1a4a', b: '#7a3aa8', c: '#d8a0ff', g: '#ff9cf0', e: '#4ae0ff' },
-    { a: '#4a3a10', b: '#b08a20', c: '#fff0a0', g: '#ffffff', e: '#ff6ae0' }
-  ];
-  X.drones = X.DRONE_T.map(t => {
-    const r = U.sprite(DRONE, { o: '#07070f', a: t.a, b: t.b, c: t.c, g: t.g, e: t.e });
-    return { r, l: U.flipX(r) };
-  });
+  /* Drones: os sprites ficam no catálogo de naves (js/ships.js, design 'flecha'). */
 
   /* ---------- Retratos de comunicação (24×24, meia grade espelhada) ---------- */
   // h/m/d = casco claro/médio/escuro, v = visor, e/E = olhos, g = grade da boca, a = luz da antena
@@ -569,6 +549,7 @@ const GFX = (() => {
     crit: ['...rrr...', '.rr...rr.', '.r..w..r.', 'r...w...r', 'r.wwwww.r', 'r...w...r', '.r..w..r.', '.rr...rr.', '...rrr...'],
     field: ['.........', '..ccccc..', '.c.....c.', 'c..bbb..c', 'c.bbbbB.c', 'c..bBB..c', '.c.....c.', '..ccccc..', '.........'],
     scanner: ['..ggggg..', '.g..g..g.', 'g...g...g', 'g...g.w.g', 'ggggwgggg', 'g.....w.g', 'g.......g', '.g.....g.', '..ggggg..'],
+    drone: ['.o.......', '.oo......', '.Boo.....', 'oBbbbsc..', 'oBbbbbccr', 'oBbbbsc..', '.BYY.....', '.YY......', '.Y.......'],
     lock: ['..bbbbb..', '.b.....b.', '.b.....b.', 'BBBBBBBBB', 'ByyyyyyyB', 'ByyykyyyB', 'ByyykyyyB', 'ByyyyyyyB', 'BBBBBBBBB']
   };
   const INGOT = ['....44444...', '..444444443.', '.43333333322', '.33333333321', '.22222222211', '..111111111.'];
@@ -576,7 +557,6 @@ const GFX = (() => {
   X.icons = () => {
     if (urlCache.done) return urlCache;
     for (const k in ICONS) urlCache[k] = U.sprite(ICONS[k], IP, true).toDataURL();
-    urlCache.drone = U.sprite(DRONE, { o: '#07070f', a: '#3a3f5a', b: '#6b7396', c: '#b8c0e0', g: '#5ef2ff', e: '#ff4a4a' }, true).toDataURL();
     ORES.forEach((o, i) => {
       const art = X.makeAsteroid({ r: 4.6, rock: o.col, ore: [o.col[2], o.col[3], o.col[4], '#ffffff', '#ffffff'], density: 0.12, seed: 100 + i * 7, frames: 1 });
       urlCache['ore' + i] = art.frames[0].toDataURL();

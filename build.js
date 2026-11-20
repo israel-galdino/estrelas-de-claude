@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const dir = __dirname;
 const rd = f => fs.readFileSync(path.join(dir, f), 'utf8');
-const js = ['util', 'data', 'audio', 'gfx', 'game', 'ui'].map(n => rd(`js/${n}.js`)).join('\n');
+const js = ['util', 'data', 'audio', 'gfx', 'ships', 'game', 'ui'].map(n => rd(`js/${n}.js`)).join('\n');
 const css = rd('style.css');
 const body = rd('body.html');
 const head = `<title>Órbita Mineradora</title>
